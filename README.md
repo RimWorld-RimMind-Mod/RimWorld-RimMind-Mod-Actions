@@ -80,6 +80,14 @@ Actions 本身无需额外配置，安装后自动生效。配合 RimMind-Adviso
 
 AI 返回的意图 ID（如 `assign_work`、`force_rest`）自动转换为 RimWorld 游戏操作。25 个内置动作覆盖工作、社交、战斗、心情等场景。
 
+### 批量执行
+
+支持多步骤任务序列，自动处理队列逻辑，首个动作打断当前任务，后续追加。
+
+### 延迟执行
+
+DelayedActionQueue 将动作投递到主线程执行，避免非主线程调用游戏 API。
+
 ### 风险分级系统
 
 每个动作标记风险等级，玩家可在设置中控制：
@@ -200,6 +208,7 @@ You can disable specific actions by risk level in mod settings.
 - **Intent-to-Action Mapping**: AI intent IDs automatically convert to RimWorld operations. 25 built-in actions cover work, social, combat, mood, and more.
 - **Risk Level System**: Each action is tagged with risk level (Low/Medium/High/Critical). Players can disable specific actions in settings.
 - **Batch Execution**: Supports multi-step job sequences with automatic queue management.
+- **Delayed Execution**: DelayedActionQueue dispatches actions to the main thread, avoiding non-main-thread game API calls.
 
 ## FAQ
 

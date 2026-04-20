@@ -133,7 +133,7 @@ public interface IActionRule
 | force_rest | Medium | Y | 强制休息 | `@x,z`（可选，指定床位坐标，`@` 前缀必需） | 可选（取其 OwnedBed） | 优先级：param坐标床 > target的床 > RestUtility自动寻床；无床时 Wait_MaintainPosture |
 | assign_work | Low | Y | 指定工作 | `WorkTypeDefName` 或 `WorkType@x,z` | - | @坐标模式：遍历 WorkGiver 在该格子找 Thing/Cell 生成 Job；自动模式：取第一个有效目标 |
 | move_to | Low | Y | 移动到坐标 | `x,z` | - | 坐标越界检查 |
-| eat_food | Medium | Y | 吃指定食物 | 食物关键词（可选，大小写不敏感匹配 defName 或 Label，留空找最近可食用食物） | - | 先搜背包再搜地图（按距离最近）；自动计算 Ingest stackCount |
+| eat_food | Medium | Y | 吃指定食物 | 食物关键词（可选，大小写不敏感匹配 defName 或 Label，留空找最近可食用食物） | - | 先搜背包再搜地图（按距离最近）；检查 CanReserveAndReach；自动计算 Ingest stackCount |
 | draft | Medium | - | 征召 | - | - | 检查 drafter != null |
 | undraft | Low | - | 解除征召 | - | - | 检查 drafter != null |
 | tend_pawn | Medium | Y | 救治目标 | - | **必填** | JobDefOf.TendPatient |
@@ -146,7 +146,7 @@ public interface IActionRule
 #### SocialActions（5 个）
 | intentId | 风险 | Job | 说明 | param | target | 实现要点 |
 |----------|------|-----|------|-------|--------|----------|
-| social_dining | Medium | - | 社交聚餐 | - | 目标小人 | 优先 ShareMeal 互动，fallback ChatFriendly；双方获得 Catharsis thought |
+| social_dining | Medium | - | 社交聚餐 | - | 目标小人 | 优先 ShareMeal 互动，fallback ChatFriendly；检查 CanInteractNowWith；双方获得 Catharsis thought |
 | social_relax | Medium | - | 社交休闲 | - | - | 给 actor Catharsis thought + 设置当前小时 Timetable 为 Joy |
 | give_item | Medium | - | 赠送物品 | 物品关键词（大小写不敏感匹配 Label 或 defName） | 受赠小人 | 从 actor 背包找物品，掉落在 target 附近（非 actor 脚下） |
 | romance_accept | Medium | Y | 发起恋爱 | - | 目标小人 | 距离内直接 TryInteractWith(RomanceAttempt)；距离外先 Goto |
@@ -179,12 +179,15 @@ public interface IActionRule
 ```csharp
 public class WorkTargetInfo
 {
-    public string Label;       // AI 可读目标名称，如"花岗岩"、"电炉 → 简单餐×5"
-    public string DefName;     // Thing.def.defName（Cell-based 为空）
-    public IntVec3 Position;   // 地图坐标
-    public float Distance;     // 到小人的距离（格）
+    public string Label   = "";   // AI 可读目标名称，如"花岗岩"、"电炉 → 简单餐×5"
+    public string DefName = "";   // Thing.def.defName（Cell-based 为空）
+    public IntVec3 Position;      // 地图坐标
+    public float Distance;        // 到小人的距离（格）
 
     public string ToParam(string workTypeDefName) => $"{workTypeDefName}@{Position.x},{Position.z}";
+
+    public override string ToString()
+        => "RimMind.Actions.Prompt.WorkTargetInfo".Translate(Label, DefName, $"{Position.x}", $"{Position.z}", $"{Distance:F0}");
 }
 ```
 
@@ -193,7 +196,7 @@ public class WorkTargetInfo
 - DoBill-based（Cooking/Crafting/Art/Smithing 等）：返回工作台 + 首条活跃账单名称
 - Cell-based（Growing 种植等）：返回地块坐标 + 区域名称；Growing 有兜底逻辑直接读 Zone_Growing
 
-**GetJoyFoodLabels**（EatFoodAction 内静态方法）：返回地图上小人可食用的 joy>0 食物名称列表（去重，最多 N 种），供 Advisor 构建候选。
+**GetJoyFoodLabels**（EatFoodAction 内静态方法，未通过 RimMindActionsAPI 暴露，需直接调用 `EatFoodAction.GetJoyFoodLabels(pawn, max)`）：返回地图上小人可食用的 joy>0 食物名称列表（去重，最多 N 种），供 Advisor 构建候选。
 
 ## 动作执行流程
 
@@ -228,12 +231,17 @@ Advisor 或其他调用方
 DelayedActionQueue.Instance.Enqueue(
     intentId: "force_rest",
     actor: pawn,
-    delaySeconds: 1.5f,  // 默认延迟，带 ±20% 随机波动
-    reason: "AI 建议休息"
+    target: null,          // 可选，目标小人
+    param: null,           // 可选，附加参数
+    reason: "AI 建议休息",
+    delaySeconds: 1.5f     // 默认延迟，带 ±20% 随机波动
 );
 
 // 取消指定小人的所有待执行动作
 DelayedActionQueue.Instance.CancelForPawn(pawn);
+
+// 获取队列调试信息（仅供 Dev 菜单使用）
+List<string> debugInfo = DelayedActionQueue.Instance.GetPendingDebugInfo();
 ```
 
 **PendingAction 记录**：`Id`(GUID), `IntentId`, `Actor`, `Target`, `Param`, `Reason`, `TimeRemaining`, `IsCancelled`, `RiskLevel`
@@ -263,7 +271,7 @@ DelayedActionQueue.Instance.CancelForPawn(pawn);
 3. **坐标解析**：各动作内私有 `ParseCell(string)` 方法（目前 ForceRestAction 和 AssignWorkAction 各有一份，未提取公共方法）
 4. **Job 生成**：使用 `JobMaker.MakeJob()`，避免直接 new Job
 5. **队列控制**：Job 类动作调用 `pawn.jobs.TryTakeOrderedJob(job, JobTag.Misc, requestQueueing)`
-6. **Def 查找**：使用 `GetNamedSilentFail` 避免 Def 不存在时报错
+6. **Def 查找**：使用 `DefDatabase<T>.GetNamedSilentFail(defName)` 避免 Def 不存在时报错；社交/恋爱动作使用 `GetNamed(defName, false)` 查找 InteractionDef
 7. **返回值**：成功返回 true，前置条件不满足返回 false
 8. **DisplayName**：使用 `"...".Translate()` 绑定翻译键
 
@@ -396,7 +404,7 @@ Dev 菜单（需开启开发模式）→ RimMind Actions：
 1. **线程安全**：所有游戏 API 调用必须在主线程执行，后台线程使用 `DelayedActionQueue`
 2. **Pawn 有效性**：Execute 中始终检查 actor.Dead / actor.Downed / actor.Map
 3. **Map 有效性**：涉及地图的操作检查 map != null
-4. **Def 存在性**：使用 `GetNamedSilentFail` 避免 Def 不存在时报错
+4. **Def 存在性**：使用 `DefDatabase<T>.GetNamedSilentFail(defName)` 避免 Def 不存在时报错；社交/恋爱动作使用 `GetNamed(defName, false)` 查找 InteractionDef
 5. **异常处理**：WorkGiver 扫描（PotentialWorkThingsGlobal/PotentialWorkCellsGlobal/HasJobOnThing/HasJobOnCell）可能抛出异常，需 try-catch 包裹
 6. **ParseCell 重复**：ForceRestAction 和 AssignWorkAction 各有私有 ParseCell，新增坐标解析动作时应注意
 7. **Harmony ID**：`mcocdaa.RimMindActions`，当前无 Patch（PatchAll 保留扩展能力）
