@@ -81,7 +81,6 @@ namespace RimMind.Actions
             if (RimMindActionsMod.Settings != null && !RimMindActionsMod.Settings.enableActions)
             {
                 var disabledResult = ActionResult.Failed(intentId, "Actions disabled", targetLabel);
-                PublishActionEvent(actor, disabledResult, eventId);
                 return disabledResult;
             }
 
@@ -161,7 +160,6 @@ namespace RimMind.Actions
                 if (RimMindActionsMod.Settings != null && !RimMindActionsMod.Settings.enableActions)
                 {
                     results.Add(ActionResult.Failed(intent.IntentId, "Actions disabled", targetLabel));
-                    PublishActionEvent(intent.Actor, results[results.Count - 1], intent.EventId);
                     continue;
                 }
 

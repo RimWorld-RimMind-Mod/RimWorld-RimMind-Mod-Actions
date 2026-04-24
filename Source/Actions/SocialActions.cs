@@ -23,8 +23,12 @@ namespace RimMind.Actions.Actions
             if (!actor.interactions.CanInteractNowWith(target, intDef)) return false;
             actor.interactions.TryInteractWith(target, intDef);
 
-            actor.needs?.mood?.thoughts?.memories?.TryGainMemory(ThoughtDefOf.Catharsis);
-            target.needs?.mood?.thoughts?.memories?.TryGainMemory(ThoughtDefOf.Catharsis);
+            var diningThought = DefDatabase<ThoughtDef>.GetNamedSilentFail("AteMealInGoodEnvironment");
+            if (diningThought != null)
+            {
+                actor.needs?.mood?.thoughts?.memories?.TryGainMemory(diningThought);
+                target.needs?.mood?.thoughts?.memories?.TryGainMemory(diningThought);
+            }
             return true;
         }
     }
@@ -108,7 +112,7 @@ namespace RimMind.Actions.Actions
             actor.jobs.TryTakeOrderedJob(
                 JobMaker.MakeJob(JobDefOf.Goto, target.Position),
                 JobTag.Misc, requestQueueing);
-            return true;
+            return false;
         }
     }
 
@@ -137,7 +141,7 @@ namespace RimMind.Actions.Actions
             actor.jobs.TryTakeOrderedJob(
                 JobMaker.MakeJob(JobDefOf.Goto, target.Position),
                 JobTag.Misc, requestQueueing);
-            return true;
+            return false;
         }
     }
 }

@@ -127,6 +127,9 @@ namespace RimMind.Actions
             if (Widgets.ButtonText(resetBtn, "RimMind.Actions.Settings.ResetToDefault".Translate()))
             {
                 Settings.DisabledIntents.Clear();
+                Settings.enableActions = true;
+                Settings.delayedQueueMaxSize = 50;
+                Settings.delayedQueueDefaultDelay = 1.5f;
             }
         }
 

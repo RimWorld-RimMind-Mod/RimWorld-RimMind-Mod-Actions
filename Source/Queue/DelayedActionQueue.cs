@@ -10,7 +10,7 @@ namespace RimMind.Actions.Queue
         private static DelayedActionQueue? _instance;
         public static DelayedActionQueue? Instance => _instance;
 
-        private readonly List<PendingAction> _queue = new List<PendingAction>();
+        private List<PendingAction> _queue = new List<PendingAction>();
         private readonly ConcurrentQueue<PendingAction> _incoming = new ConcurrentQueue<PendingAction>();
 
         public DelayedActionQueue(Game game)
@@ -29,13 +29,12 @@ namespace RimMind.Actions.Queue
             float effectiveDelay = delaySeconds >= 0f ? delaySeconds : (RimMindActionsMod.Settings?.delayedQueueDefaultDelay ?? 1.5f);
             int effectiveDelayTicks = (int)(effectiveDelay * 60f);
             int maxSize = RimMindActionsMod.Settings?.delayedQueueMaxSize ?? 50;
-            if (_queue.Count + _incoming.Count >= maxSize)
+            if (_incoming.Count >= maxSize)
             {
                 Log.Warning($"[RimMind-Actions] DelayedActionQueue: queue full ({maxSize}), dropping '{intentId}'");
                 return;
             }
 
-            int jitterTicks = (int)(effectiveDelayTicks * 0.2f * (Rand.Value * 2f - 1f));
             _incoming.Enqueue(new PendingAction
             {
                 IntentId = intentId,
@@ -43,7 +42,7 @@ namespace RimMind.Actions.Queue
                 Target = target,
                 Param = param,
                 Reason = reason,
-                TicksRemaining = effectiveDelayTicks + jitterTicks,
+                TicksRemaining = effectiveDelayTicks,
                 RiskLevel = RimMindActionsAPI.GetRiskLevel(intentId) ?? RiskLevel.Low
             });
         }
@@ -118,18 +117,27 @@ namespace RimMind.Actions.Queue
 
         private void DrainIncoming()
         {
+            int maxSize = RimMindActionsMod.Settings?.delayedQueueMaxSize ?? 50;
             while (_incoming.TryDequeue(out var action))
             {
+                if (_queue.Count >= maxSize)
+                {
+                    Log.Warning($"[RimMind-Actions] DelayedActionQueue: queue full ({maxSize}), dropping '{action.IntentId}'");
+                    continue;
+                }
+                int jitterTicks = (int)(action.TicksRemaining * 0.2f * (Rand.Value * 2f - 1f));
+                action.TicksRemaining += jitterTicks;
                 _queue.Add(action);
             }
         }
 
         public override void ExposeData()
         {
+            Scribe_Collections.Look(ref _queue, "queue", LookMode.Deep);
         }
     }
 
-    public class PendingAction
+    public class PendingAction : IExposable
     {
         public string IntentId = "";
         public Pawn Actor = null!;
@@ -139,5 +147,17 @@ namespace RimMind.Actions.Queue
         public int TicksRemaining;
         public bool IsCancelled;
         public RiskLevel RiskLevel;
+
+        public void ExposeData()
+        {
+            Scribe_Values.Look(ref IntentId, "intentId");
+            Scribe_References.Look(ref Actor, "actor");
+            Scribe_References.Look(ref Target, "target");
+            Scribe_Values.Look(ref Param, "param");
+            Scribe_Values.Look(ref Reason, "reason");
+            Scribe_Values.Look(ref TicksRemaining, "ticksRemaining");
+            Scribe_Values.Look(ref IsCancelled, "isCancelled");
+            Scribe_Values.Look(ref RiskLevel, "riskLevel");
+        }
     }
 }
