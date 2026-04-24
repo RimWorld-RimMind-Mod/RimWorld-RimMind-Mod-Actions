@@ -221,8 +221,8 @@ namespace RimMind.Actions.Debug
 
             // 诊断：提前检查 InteractionDef 是否存在 + CanInteractNowWith 原因
             var shareMealDef = DefDatabase<InteractionDef>.GetNamed("ShareMeal", false);
-            var chatDef      = DefDatabase<InteractionDef>.GetNamed("ChatFriendly", false);
-            var intDef       = shareMealDef ?? chatDef;
+            var chatDef = DefDatabase<InteractionDef>.GetNamed("ChatFriendly", false);
+            var intDef = shareMealDef ?? chatDef;
             if (intDef == null)
             {
                 Log.Warning("[RimMind-Actions] social_dining diag: ShareMeal and ChatFriendly InteractionDef both missing (ShareMeal may not exist in vanilla).");
@@ -600,7 +600,7 @@ namespace RimMind.Actions.Debug
 
         private static bool TryGetFactionAndColonist(out Faction? faction, out Pawn? colonist)
         {
-            faction  = null;
+            faction = null;
             colonist = null;
 
             var map = Find.CurrentMap;

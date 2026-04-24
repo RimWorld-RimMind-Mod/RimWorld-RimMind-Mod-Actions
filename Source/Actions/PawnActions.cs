@@ -7,15 +7,30 @@ using Verse.AI;
 
 namespace RimMind.Actions.Actions
 {
+    internal static class ActionHelper
+    {
+        internal static IntVec3? ParseCell(string s)
+        {
+            var parts = s.Split(',');
+            if (parts.Length == 2 &&
+                int.TryParse(parts[0].Trim(), out int x) &&
+                int.TryParse(parts[1].Trim(), out int z))
+                return new IntVec3(x, 0, z);
+            return null;
+        }
+    }
+
     // ─────────────────────────────────────────────
     //  force_rest
     // ─────────────────────────────────────────────
     public class ForceRestAction : IActionRule
     {
-        public string IntentId    => "force_rest";
+        public string IntentId => "force_rest";
         public string DisplayName => "RimMind.Actions.DisplayName.ForceRest".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
         public bool IsJobBased => true;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"param\":{\"type\":\"string\",\"description\":\"Optional bed location as @x,z coordinates\"}},\"required\":[]}";
 
         /// <summary>
         /// param（可选）：
@@ -33,7 +48,7 @@ namespace RimMind.Actions.Actions
             // 优先：param 指定坐标 "@x,z"
             if (!string.IsNullOrEmpty(param) && param!.StartsWith("@"))
             {
-                var cell = ParseCell(param.Substring(1));
+                var cell = ActionHelper.ParseCell(param.Substring(1));
                 if (cell.HasValue && cell.Value.InBounds(actor.Map))
                     bed = actor.Map.thingGrid.ThingsListAt(cell.Value)
                               .OfType<Building_Bed>()
@@ -58,15 +73,6 @@ namespace RimMind.Actions.Actions
             return true;
         }
 
-        private static IntVec3? ParseCell(string s)
-        {
-            var parts = s.Split(',');
-            if (parts.Length == 2 &&
-                int.TryParse(parts[0].Trim(), out int x) &&
-                int.TryParse(parts[1].Trim(), out int z))
-                return new IntVec3(x, 0, z);
-            return null;
-        }
     }
 
     // ─────────────────────────────────────────────
@@ -78,7 +84,7 @@ namespace RimMind.Actions.Actions
     public class WorkTargetInfo
     {
         /// <summary>AI 可读的目标名称，如"花岗岩"</summary>
-        public string Label   = "";
+        public string Label = "";
         /// <summary>Thing.def.defName，如"Granite"</summary>
         public string DefName = "";
         /// <summary>地图坐标，用于 assign_work param 编码</summary>
@@ -96,10 +102,12 @@ namespace RimMind.Actions.Actions
 
     public class AssignWorkAction : IActionRule
     {
-        public string IntentId    => "assign_work";
+        public string IntentId => "assign_work";
         public string DisplayName => "RimMind.Actions.DisplayName.AssignWork".Translate();
         public RiskLevel RiskLevel => RiskLevel.Low;
         public bool IsJobBased => true;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"param\":{\"type\":\"string\",\"description\":\"Work type name (e.g. Mining) or WorkType@x,z for specific target\"}},\"required\":[\"param\"]}";
 
         /// <summary>
         /// param 支持两种格式：
@@ -119,7 +127,7 @@ namespace RimMind.Actions.Actions
             {
                 workTypeName = param.Substring(0, atIdx);
                 var cellPart = param.Substring(atIdx + 1);
-                forcedCell = ParseCell(cellPart);
+                forcedCell = ActionHelper.ParseCell(cellPart);
                 if (forcedCell == null)
                 {
                     Log.Warning($"[RimMind-Actions] assign_work: cannot parse cell '{cellPart}', falling back to auto-target");
@@ -150,43 +158,48 @@ namespace RimMind.Actions.Actions
         private static bool ExecuteAtCell(Pawn actor, WorkTypeDef workType,
             IntVec3 cell, bool requestQueueing)
         {
-            if (!cell.InBounds(actor.Map))
+            try
             {
-                Log.Warning($"[RimMind-Actions] assign_work: cell {cell} out of map bounds");
-                return false;
-            }
-
-            // 找该格子上的 Thing，尝试每个 WorkGiver 生成 Job
-            foreach (var wg in workType.workGiversByPriority)
-            {
-                if (wg.Worker is not WorkGiver_Scanner scanner) continue;
-                if (scanner.ShouldSkip(actor, false)) continue;
-
-                // 尝试 cell 上的每个 Thing
-                var thingsAt = actor.Map.thingGrid.ThingsListAt(cell);
-                foreach (var thing in thingsAt)
+                if (!cell.InBounds(actor.Map))
                 {
-                    if (!scanner.HasJobOnThing(actor, thing, false)) continue;
-                    var job = scanner.JobOnThing(actor, thing, false);
-                    if (job == null) continue;
-                    actor.jobs.TryTakeOrderedJob(job, JobTag.Misc, requestQueueing);
-                    return true;
+                    Log.Warning($"[RimMind-Actions] assign_work: cell {cell} out of map bounds");
+                    return false;
                 }
 
-                // 部分 WorkGiver 支持 cell 目标（如 Grower）
-                if (scanner.HasJobOnCell(actor, cell, false))
+                foreach (var wg in workType.workGiversByPriority)
                 {
-                    var job = scanner.JobOnCell(actor, cell, false);
-                    if (job != null)
+                    if (wg.Worker is not WorkGiver_Scanner scanner) continue;
+                    if (scanner.ShouldSkip(actor, false)) continue;
+
+                    var thingsAt = actor.Map.thingGrid.ThingsListAt(cell);
+                    foreach (var thing in thingsAt)
                     {
+                        if (!scanner.HasJobOnThing(actor, thing, false)) continue;
+                        var job = scanner.JobOnThing(actor, thing, false);
+                        if (job == null) continue;
                         actor.jobs.TryTakeOrderedJob(job, JobTag.Misc, requestQueueing);
                         return true;
                     }
-                }
-            }
 
-            Log.Warning($"[RimMind-Actions] assign_work: no {workType.defName} work target found at cell {cell}");
-            return false;
+                    if (scanner.HasJobOnCell(actor, cell, false))
+                    {
+                        var job = scanner.JobOnCell(actor, cell, false);
+                        if (job != null)
+                        {
+                            actor.jobs.TryTakeOrderedJob(job, JobTag.Misc, requestQueueing);
+                            return true;
+                        }
+                    }
+                }
+
+                Log.Warning($"[RimMind-Actions] assign_work: no {workType.defName} work target found at cell {cell}");
+                return false;
+            }
+            catch (Exception e)
+            {
+                Log.Warning($"[RimMind-Actions] ExecuteAtCell: {workType.defName} threw at {cell}: {e.Message}");
+                return false;
+            }
         }
 
         private static bool ExecuteAuto(Pawn actor, WorkTypeDef workType, bool requestQueueing)
@@ -217,16 +230,6 @@ namespace RimMind.Actions.Actions
             return false;
         }
 
-        private static IntVec3? ParseCell(string s)
-        {
-            var parts = s.Split(',');
-            if (parts.Length == 2 &&
-                int.TryParse(parts[0].Trim(), out int x) &&
-                int.TryParse(parts[1].Trim(), out int z))
-                return new IntVec3(x, 0, z);
-            return null;
-        }
-
         // ── 静态工具：枚举可用工作目标（供 Advisor 调用）──────────────────────
 
         /// <summary>
@@ -251,7 +254,7 @@ namespace RimMind.Actions.Actions
 
             int cap = maxCount * 3; // 收集上限（排序前），防止大地图扫描过久
             var seenThings = new HashSet<Thing>();
-            var seenCells  = new HashSet<IntVec3>();
+            var seenCells = new HashSet<IntVec3>();
 
             foreach (var wg in workType.workGiversByPriority)
             {
@@ -289,8 +292,8 @@ namespace RimMind.Actions.Actions
 
                         result.Add(new WorkTargetInfo
                         {
-                            Label    = label,
-                            DefName  = "",
+                            Label = label,
+                            DefName = "",
                             Position = cell,
                             Distance = pawn.Position.DistanceTo(cell),
                         });
@@ -325,8 +328,8 @@ namespace RimMind.Actions.Actions
 
                         result.Add(new WorkTargetInfo
                         {
-                            Label    = label,
-                            DefName  = thing.def.defName,
+                            Label = label,
+                            DefName = thing.def.defName,
                             Position = thing.Position,
                             Distance = pawn.Position.DistanceTo(thing.Position),
                         });
@@ -374,8 +377,8 @@ namespace RimMind.Actions.Actions
 
                     result.Add(new WorkTargetInfo
                     {
-                        Label    = "RimMind.Actions.Prompt.Harvestable".Translate(plant.LabelShort, growZone.label),
-                        DefName  = "",
+                        Label = "RimMind.Actions.Prompt.Harvestable".Translate(plant.LabelShort, growZone.label),
+                        DefName = "",
                         Position = cell,
                         Distance = pawn.Position.DistanceTo(cell),
                     });
@@ -387,7 +390,7 @@ namespace RimMind.Actions.Actions
                     var wantedDef = growZone.GetPlantDefToGrow();
                     if (wantedDef != null)
                     {
-                        int emptyCells     = 0;
+                        int emptyCells = 0;
                         var firstEmptyCell = IntVec3.Invalid;
                         foreach (var cell in growZone.cells)
                         {
@@ -401,8 +404,8 @@ namespace RimMind.Actions.Actions
                         {
                             result.Add(new WorkTargetInfo
                             {
-                                Label    = "RimMind.Actions.Prompt.WaitSow".Translate(wantedDef.LabelCap, $"{emptyCells}", growZone.label),
-                                DefName  = "",
+                                Label = "RimMind.Actions.Prompt.WaitSow".Translate(wantedDef.LabelCap, $"{emptyCells}", growZone.label),
+                                DefName = "",
                                 Position = firstEmptyCell,
                                 Distance = pawn.Position.DistanceTo(firstEmptyCell),
                             });
@@ -446,10 +449,12 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class MoveToAction : IActionRule
     {
-        public string IntentId    => "move_to";
+        public string IntentId => "move_to";
         public string DisplayName => "RimMind.Actions.DisplayName.MoveTo".Translate();
         public RiskLevel RiskLevel => RiskLevel.Low;
         public bool IsJobBased => true;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"param\":{\"type\":\"string\",\"description\":\"Map coordinates as x,z (e.g. '120,200')\"}},\"required\":[\"param\"]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
@@ -481,12 +486,14 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class DraftAction : IActionRule
     {
-        public string IntentId    => "draft";
+        public string IntentId => "draft";
         public string DisplayName => "RimMind.Actions.DisplayName.Draft".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
+        public string? ParameterSchema => null;
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
+            if (actor.Dead) return false;
             if (actor.drafter == null) return false;
             actor.drafter.Drafted = true;
             return true;
@@ -498,12 +505,14 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class UndraftAction : IActionRule
     {
-        public string IntentId    => "undraft";
+        public string IntentId => "undraft";
         public string DisplayName => "RimMind.Actions.DisplayName.Undraft".Translate();
         public RiskLevel RiskLevel => RiskLevel.Low;
+        public string? ParameterSchema => null;
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
+            if (actor.Dead) return false;
             if (actor.drafter == null) return false;
             actor.drafter.Drafted = false;
             return true;
@@ -515,10 +524,12 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class TendPawnAction : IActionRule
     {
-        public string IntentId    => "tend_pawn";
+        public string IntentId => "tend_pawn";
         public string DisplayName => "RimMind.Actions.DisplayName.TendPawn".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
         public bool IsJobBased => true;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"target\":{\"type\":\"string\",\"description\":\"Target pawn short name\"}},\"required\":[\"target\"]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
@@ -533,10 +544,12 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class RescuePawnAction : IActionRule
     {
-        public string IntentId    => "rescue_pawn";
+        public string IntentId => "rescue_pawn";
         public string DisplayName => "RimMind.Actions.DisplayName.RescuePawn".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
         public bool IsJobBased => true;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"target\":{\"type\":\"string\",\"description\":\"Downed pawn short name\"}},\"required\":[\"target\"]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
@@ -551,10 +564,12 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class ArrestPawnAction : IActionRule
     {
-        public string IntentId    => "arrest_pawn";
+        public string IntentId => "arrest_pawn";
         public string DisplayName => "RimMind.Actions.DisplayName.ArrestPawn".Translate();
         public RiskLevel RiskLevel => RiskLevel.High;
         public bool IsJobBased => true;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"target\":{\"type\":\"string\",\"description\":\"Target pawn short name to arrest\"}},\"required\":[\"target\"]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
@@ -569,9 +584,10 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class CancelJobAction : IActionRule
     {
-        public string IntentId    => "cancel_job";
+        public string IntentId => "cancel_job";
         public string DisplayName => "RimMind.Actions.DisplayName.CancelJob".Translate();
         public RiskLevel RiskLevel => RiskLevel.Low;
+        public string? ParameterSchema => null;
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
@@ -586,9 +602,11 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class SetWorkPriorityAction : IActionRule
     {
-        public string IntentId    => "set_work_priority";
+        public string IntentId => "set_work_priority";
         public string DisplayName => "RimMind.Actions.DisplayName.SetWorkPriority".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"param\":{\"type\":\"string\",\"description\":\"Format: WorkType,priority (0-4). E.g. Mining,1\"}},\"required\":[\"param\"]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
@@ -614,9 +632,10 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class DropWeaponAction : IActionRule
     {
-        public string IntentId    => "drop_weapon";
+        public string IntentId => "drop_weapon";
         public string DisplayName => "RimMind.Actions.DisplayName.DropWeapon".Translate();
         public RiskLevel RiskLevel => RiskLevel.High;
+        public string? ParameterSchema => null;
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
@@ -635,10 +654,12 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class EatFoodAction : IActionRule
     {
-        public string IntentId    => "eat_food";
+        public string IntentId => "eat_food";
         public string DisplayName => "RimMind.Actions.DisplayName.EatFood".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
         public bool IsJobBased => true;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"param\":{\"type\":\"string\",\"description\":\"Optional food keyword (defName or label). Empty = auto find nearest edible food.\"}},\"required\":[]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {

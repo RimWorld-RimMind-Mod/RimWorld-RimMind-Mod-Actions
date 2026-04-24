@@ -1,61 +1,53 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using Verse;
 
 namespace RimMind.Actions.Queue
 {
-    /// <summary>
-    /// GameComponent：延迟动作执行队列。
-    /// Advisor 通过此组件投递动作，避免在 AI 回调（非主线程）中直接执行游戏逻辑。
-    /// </summary>
     public class DelayedActionQueue : GameComponent
     {
         private static DelayedActionQueue? _instance;
-        public static DelayedActionQueue Instance => _instance!;
+        public static DelayedActionQueue? Instance => _instance;
 
-        // 待执行动作列表（仅主线程访问）
         private readonly List<PendingAction> _queue = new List<PendingAction>();
+        private readonly ConcurrentQueue<PendingAction> _incoming = new ConcurrentQueue<PendingAction>();
 
-        // RimWorld 用 Activator.CreateInstance(type, game) 创建 GameComponent，必须保留此签名
         public DelayedActionQueue(Game game)
         {
             _instance = this;
         }
 
-        /// <summary>
-        /// 入队一个延迟动作。
-        /// </summary>
-        /// <param name="intentId">动作意图 ID</param>
-        /// <param name="actor">执行小人</param>
-        /// <param name="target">目标小人（可选）</param>
-        /// <param name="param">附加参数（可选）</param>
-        /// <param name="reason">AI 给出的理由（用于气泡显示）</param>
-        /// <param name="delaySeconds">延迟执行秒数（默认 1.5s，±20% 随机波动）</param>
         public void Enqueue(
             string intentId,
             Pawn actor,
             Pawn? target = null,
             string? param = null,
             string? reason = null,
-            float delaySeconds = 1.5f)
+            float delaySeconds = -1f)
         {
-            float jitter = delaySeconds * 0.2f * (Rand.Value * 2f - 1f); // ±20%
-            _queue.Add(new PendingAction
+            float effectiveDelay = delaySeconds >= 0f ? delaySeconds : (RimMindActionsMod.Settings?.delayedQueueDefaultDelay ?? 1.5f);
+            int effectiveDelayTicks = (int)(effectiveDelay * 60f);
+            int maxSize = RimMindActionsMod.Settings?.delayedQueueMaxSize ?? 50;
+            if (_queue.Count + _incoming.Count >= maxSize)
             {
-                Id            = Guid.NewGuid().ToString("N"),
-                IntentId      = intentId,
-                Actor         = actor,
-                Target        = target,
-                Param         = param,
-                Reason        = reason,
-                TimeRemaining = delaySeconds + jitter,
-                RiskLevel     = RimMindActionsAPI.GetRiskLevel(intentId) ?? RiskLevel.Low
+                Log.Warning($"[RimMind-Actions] DelayedActionQueue: queue full ({maxSize}), dropping '{intentId}'");
+                return;
+            }
+
+            int jitterTicks = (int)(effectiveDelayTicks * 0.2f * (Rand.Value * 2f - 1f));
+            _incoming.Enqueue(new PendingAction
+            {
+                IntentId = intentId,
+                Actor = actor,
+                Target = target,
+                Param = param,
+                Reason = reason,
+                TicksRemaining = effectiveDelayTicks + jitterTicks,
+                RiskLevel = RimMindActionsAPI.GetRiskLevel(intentId) ?? RiskLevel.Low
             });
         }
 
-        /// <summary>
-        /// 返回队列中所有动作的调试信息字符串列表（仅供 Dev 菜单使用）。
-        /// </summary>
         public List<string> GetPendingDebugInfo()
         {
             var result = new List<string>(_queue.Count);
@@ -64,15 +56,12 @@ namespace RimMind.Actions.Queue
                 result.Add($"  [{p.RiskLevel}] {p.IntentId} | actor:{p.Actor?.Name?.ToStringShort ?? "?"}" +
                            $"{(p.Target != null ? $" -> {p.Target.Name.ToStringShort}" : "")}" +
                            $"{(p.Param != null ? $" param={p.Param}" : "")}" +
-                           $" remaining:{p.TimeRemaining:F1}s" +
+                           $" remaining:{p.TicksRemaining}t" +
                            $"{(p.IsCancelled ? " [cancelled]" : "")}");
             }
             return result;
         }
 
-        /// <summary>
-        /// 取消指定小人的所有待执行动作。
-        /// </summary>
         public void CancelForPawn(Pawn actor)
         {
             foreach (var pending in _queue)
@@ -80,13 +69,23 @@ namespace RimMind.Actions.Queue
                 if (pending.Actor == actor)
                     pending.IsCancelled = true;
             }
+
+            var temp = new List<PendingAction>();
+            while (_incoming.TryDequeue(out var action))
+            {
+                if (action.Actor == actor)
+                    action.IsCancelled = true;
+                temp.Add(action);
+            }
+            foreach (var action in temp)
+                _incoming.Enqueue(action);
         }
 
         public override void GameComponentTick()
         {
-            if (_queue.Count == 0) return;
+            DrainIncoming();
 
-            float dt = 1f / 60f; // 每 Tick ≈ 1/60 秒（RimWorld 60 ticks/s）
+            if (_queue.Count == 0) return;
 
             for (int i = _queue.Count - 1; i >= 0; i--)
             {
@@ -99,14 +98,15 @@ namespace RimMind.Actions.Queue
                     continue;
                 }
 
-                pending.TimeRemaining -= dt;
+                pending.TicksRemaining--;
 
-                if (pending.TimeRemaining > 0f) continue;
+                if (pending.TicksRemaining > 0) continue;
 
-                // 到期执行
                 try
                 {
                     RimMindActionsAPI.Execute(pending.IntentId, pending.Actor, pending.Target, pending.Param);
+                    if (!pending.Reason.NullOrEmpty())
+                        Log.Message($"[RimMind-Actions] DelayedActionQueue executed '{pending.IntentId}' for {pending.Actor.Name?.ToStringShort}: {pending.Reason}");
                 }
                 catch (Exception e)
                 {
@@ -116,25 +116,27 @@ namespace RimMind.Actions.Queue
             }
         }
 
+        private void DrainIncoming()
+        {
+            while (_incoming.TryDequeue(out var action))
+            {
+                _queue.Add(action);
+            }
+        }
+
         public override void ExposeData()
         {
-            // PendingAction 中含 Pawn 引用（不可跨存档序列化），队列不做存档
-            // 加载存档时队列自然为空，Advisor 下次 tick 重新评估
         }
     }
 
-    /// <summary>
-    /// 待执行动作记录。
-    /// </summary>
     public class PendingAction
     {
-        public string Id            = "";
-        public string IntentId      = "";
-        public Pawn Actor           = null!;
+        public string IntentId = "";
+        public Pawn Actor = null!;
         public Pawn? Target;
         public string? Param;
         public string? Reason;
-        public float TimeRemaining;
+        public int TicksRemaining;
         public bool IsCancelled;
         public RiskLevel RiskLevel;
     }

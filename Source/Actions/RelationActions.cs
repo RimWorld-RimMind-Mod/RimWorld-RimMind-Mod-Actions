@@ -11,9 +11,11 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class RecruitAgreeAction : IActionRule
     {
-        public string IntentId    => "recruit_agree";
+        public string IntentId => "recruit_agree";
         public string DisplayName => "RimMind.Actions.DisplayName.RecruitAgree".Translate();
         public RiskLevel RiskLevel => RiskLevel.High;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"target\":{\"type\":\"string\",\"description\":\"Target pawn short name to recruit\"}},\"required\":[\"target\"]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
@@ -57,9 +59,11 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class AdjustFactionAction : IActionRule
     {
-        public string IntentId    => "adjust_faction";
+        public string IntentId => "adjust_faction";
         public string DisplayName => "RimMind.Actions.DisplayName.AdjustFaction".Translate();
         public RiskLevel RiskLevel => RiskLevel.High;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"param\":{\"type\":\"string\",\"description\":\"Format: FactionDef,delta (e.g. Outlander,-20). Delta range: -100 to 100\"}},\"required\":[\"param\"]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {

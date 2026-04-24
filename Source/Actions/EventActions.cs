@@ -8,9 +8,11 @@ namespace RimMind.Actions.Actions
     // ─────────────────────────────────────────────
     public class TriggerIncidentAction : IActionRule
     {
-        public string IntentId    => "trigger_incident";
+        public string IntentId => "trigger_incident";
         public string DisplayName => "RimMind.Actions.DisplayName.TriggerIncident".Translate();
         public RiskLevel RiskLevel => RiskLevel.Critical;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"param\":{\"type\":\"string\",\"description\":\"IncidentDef defName to trigger (e.g. RaidEnemy, Infestation, ManhunterPack)\"}},\"required\":[\"param\"]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
