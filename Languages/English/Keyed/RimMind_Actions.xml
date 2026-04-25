@@ -4,7 +4,7 @@
   <RimMind.Actions.DisplayName.TriggerIncident>Trigger Incident</RimMind.Actions.DisplayName.TriggerIncident>
   <!-- MoodActions.cs -->
   <RimMind.Actions.DisplayName.InspireWork>Inspire Work</RimMind.Actions.DisplayName.InspireWork>
-  <RimMind.Actions.DisplayName.InspireFight>Inspire Fight</RimMind.Actions.DisplayName.InspireFight>
+  <RimMind.Actions.DisplayName.InspireShoot>Inspire Shoot</RimMind.Actions.DisplayName.InspireShoot>
   <RimMind.Actions.DisplayName.InspireTrade>Inspire Trade</RimMind.Actions.DisplayName.InspireTrade>
   <RimMind.Actions.DisplayName.AddThought>Add Thought</RimMind.Actions.DisplayName.AddThought>
   <RimMind.Actions.DisplayName.TriggerMentalState>Trigger Mental Break</RimMind.Actions.DisplayName.TriggerMentalState>
@@ -25,10 +25,9 @@
   <RimMind.Actions.DisplayName.RecruitAgree>Recruit Agree</RimMind.Actions.DisplayName.RecruitAgree>
   <RimMind.Actions.DisplayName.AdjustFaction>Adjust Faction</RimMind.Actions.DisplayName.AdjustFaction>
   <!-- SocialActions.cs -->
-  <RimMind.Actions.DisplayName.SocialDining>Social Dining</RimMind.Actions.DisplayName.SocialDining>
   <RimMind.Actions.DisplayName.SocialRelax>Social Relax</RimMind.Actions.DisplayName.SocialRelax>
   <RimMind.Actions.DisplayName.GiveItem>Give Item</RimMind.Actions.DisplayName.GiveItem>
-  <RimMind.Actions.DisplayName.RomanceAccept>Romance Accept</RimMind.Actions.DisplayName.RomanceAccept>
+  <RimMind.Actions.DisplayName.RomanceAttempt>Romance Attempt</RimMind.Actions.DisplayName.RomanceAttempt>
   <RimMind.Actions.DisplayName.RomanceBreakup>Romance Breakup</RimMind.Actions.DisplayName.RomanceBreakup>
   <!-- RimMindActionsMod.cs -->
   <RimMind.Actions.Settings.AllowedActionsLabel>Allowed AI Actions</RimMind.Actions.Settings.AllowedActionsLabel>
@@ -66,15 +65,14 @@
   <RimMind.Actions.Desc.cancel_job>Cancel current job</RimMind.Actions.Desc.cancel_job>
   <RimMind.Actions.Desc.set_work_priority>Adjust priority of a work type</RimMind.Actions.Desc.set_work_priority>
   <RimMind.Actions.Desc.drop_weapon>Drop held weapon</RimMind.Actions.Desc.drop_weapon>
-  <RimMind.Actions.Desc.social_dining>Share a meal with companion to bond</RimMind.Actions.Desc.social_dining>
   <RimMind.Actions.Desc.social_relax>Social relaxation to relieve stress</RimMind.Actions.Desc.social_relax>
   <RimMind.Actions.Desc.give_item>Give an item from inventory to target</RimMind.Actions.Desc.give_item>
-  <RimMind.Actions.Desc.romance_accept>Initiate romance with target</RimMind.Actions.Desc.romance_accept>
+  <RimMind.Actions.Desc.romance_attempt>Initiate romance attempt with target</RimMind.Actions.Desc.romance_attempt>
   <RimMind.Actions.Desc.romance_breakup>Break up with target</RimMind.Actions.Desc.romance_breakup>
   <RimMind.Actions.Desc.recruit_agree>Agree to join the colony</RimMind.Actions.Desc.recruit_agree>
   <RimMind.Actions.Desc.adjust_faction>Adjust relations with a faction</RimMind.Actions.Desc.adjust_faction>
   <RimMind.Actions.Desc.inspire_work>Gain work frenzy inspiration for double speed</RimMind.Actions.Desc.inspire_work>
-  <RimMind.Actions.Desc.inspire_fight>Gain shooting inspiration for better accuracy</RimMind.Actions.Desc.inspire_fight>
+  <RimMind.Actions.Desc.inspire_shoot>Gain shooting frenzy inspiration for better accuracy</RimMind.Actions.Desc.inspire_shoot>
   <RimMind.Actions.Desc.inspire_trade>Gain trade inspiration for better prices</RimMind.Actions.Desc.inspire_trade>
   <RimMind.Actions.Desc.add_thought>Add a mood thought</RimMind.Actions.Desc.add_thought>
   <RimMind.Actions.Desc.trigger_mental_state>Trigger a mental break</RimMind.Actions.Desc.trigger_mental_state>

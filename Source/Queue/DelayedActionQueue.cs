@@ -150,7 +150,10 @@ namespace RimMind.Actions.Queue
 
         public void ExposeData()
         {
+#pragma warning disable CS8601
             Scribe_Values.Look(ref IntentId, "intentId");
+#pragma warning restore CS8601
+            IntentId ??= "";
             Scribe_References.Look(ref Actor, "actor");
             Scribe_References.Look(ref Target, "target");
             Scribe_Values.Look(ref Param, "param");

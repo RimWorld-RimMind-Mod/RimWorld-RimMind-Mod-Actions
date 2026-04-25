@@ -4,7 +4,7 @@
   <RimMind.Actions.DisplayName.TriggerIncident>触发事件</RimMind.Actions.DisplayName.TriggerIncident>
   <!-- MoodActions.cs -->
   <RimMind.Actions.DisplayName.InspireWork>触发工作灵感</RimMind.Actions.DisplayName.InspireWork>
-  <RimMind.Actions.DisplayName.InspireFight>触发战斗灵感</RimMind.Actions.DisplayName.InspireFight>
+  <RimMind.Actions.DisplayName.InspireShoot>触发射击灵感</RimMind.Actions.DisplayName.InspireShoot>
   <RimMind.Actions.DisplayName.InspireTrade>触发交易灵感</RimMind.Actions.DisplayName.InspireTrade>
   <RimMind.Actions.DisplayName.AddThought>添加 Thought</RimMind.Actions.DisplayName.AddThought>
   <RimMind.Actions.DisplayName.TriggerMentalState>触发精神崩溃</RimMind.Actions.DisplayName.TriggerMentalState>
@@ -25,10 +25,9 @@
   <RimMind.Actions.DisplayName.RecruitAgree>同意招募</RimMind.Actions.DisplayName.RecruitAgree>
   <RimMind.Actions.DisplayName.AdjustFaction>修改派系关系</RimMind.Actions.DisplayName.AdjustFaction>
   <!-- SocialActions.cs -->
-  <RimMind.Actions.DisplayName.SocialDining>社交聚餐</RimMind.Actions.DisplayName.SocialDining>
   <RimMind.Actions.DisplayName.SocialRelax>社交休闲</RimMind.Actions.DisplayName.SocialRelax>
   <RimMind.Actions.DisplayName.GiveItem>赠送物品</RimMind.Actions.DisplayName.GiveItem>
-  <RimMind.Actions.DisplayName.RomanceAccept>发起恋爱</RimMind.Actions.DisplayName.RomanceAccept>
+  <RimMind.Actions.DisplayName.RomanceAttempt>求爱</RimMind.Actions.DisplayName.RomanceAttempt>
   <RimMind.Actions.DisplayName.RomanceBreakup>分手</RimMind.Actions.DisplayName.RomanceBreakup>
   <!-- RimMindActionsMod.cs -->
   <RimMind.Actions.Settings.AllowedActionsLabel>允许 AI 执行的动作</RimMind.Actions.Settings.AllowedActionsLabel>
@@ -66,15 +65,14 @@
   <RimMind.Actions.Desc.cancel_job>中止当前正在执行的任务</RimMind.Actions.Desc.cancel_job>
   <RimMind.Actions.Desc.set_work_priority>调整某项工作的优先级</RimMind.Actions.Desc.set_work_priority>
   <RimMind.Actions.Desc.drop_weapon>丢弃手中武器</RimMind.Actions.Desc.drop_weapon>
-  <RimMind.Actions.Desc.social_dining>与同伴共进餐食增进关系</RimMind.Actions.Desc.social_dining>
   <RimMind.Actions.Desc.social_relax>社交休闲释放压力</RimMind.Actions.Desc.social_relax>
   <RimMind.Actions.Desc.give_item>将背包中的物品赠予目标</RimMind.Actions.Desc.give_item>
-  <RimMind.Actions.Desc.romance_accept>向目标发起恋爱</RimMind.Actions.Desc.romance_accept>
+  <RimMind.Actions.Desc.romance_attempt>向目标发起求爱</RimMind.Actions.Desc.romance_attempt>
   <RimMind.Actions.Desc.romance_breakup>与目标分手</RimMind.Actions.Desc.romance_breakup>
   <RimMind.Actions.Desc.recruit_agree>同意加入殖民地</RimMind.Actions.Desc.recruit_agree>
   <RimMind.Actions.Desc.adjust_faction>调整与某派系的关系</RimMind.Actions.Desc.adjust_faction>
   <RimMind.Actions.Desc.inspire_work>获得工作狂热灵感加倍速度</RimMind.Actions.Desc.inspire_work>
-  <RimMind.Actions.Desc.inspire_fight>获得射击灵感提高命中</RimMind.Actions.Desc.inspire_fight>
+  <RimMind.Actions.Desc.inspire_shoot>获得射击狂热灵感提高命中</RimMind.Actions.Desc.inspire_shoot>
   <RimMind.Actions.Desc.inspire_trade>获得交易灵感获得更好价格</RimMind.Actions.Desc.inspire_trade>
   <RimMind.Actions.Desc.add_thought>添加一个心情思想</RimMind.Actions.Desc.add_thought>
   <RimMind.Actions.Desc.trigger_mental_state>触发精神崩溃</RimMind.Actions.Desc.trigger_mental_state>

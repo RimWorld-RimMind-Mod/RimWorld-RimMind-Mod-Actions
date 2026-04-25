@@ -20,10 +20,10 @@ namespace RimMind.Actions.Actions
         }
     }
 
-    public class InspireFightAction : IActionRule
+    public class InspireShootAction : IActionRule
     {
-        public string IntentId => "inspire_fight";
-        public string DisplayName => "RimMind.Actions.DisplayName.InspireFight".Translate();
+        public string IntentId => "inspire_shoot";
+        public string DisplayName => "RimMind.Actions.DisplayName.InspireShoot".Translate();
         public RiskLevel RiskLevel => RiskLevel.High;
         public string? ParameterSchema =>
             "{\"type\":\"object\",\"properties\":{\"target\":{\"type\":\"string\",\"description\":\"Target pawn short name\"}},\"required\":[]}";

@@ -74,7 +74,7 @@ namespace RimMind.Actions
             if (actor == null)
             {
                 var nullResult = ActionResult.Failed(intentId, "Actor is null", targetLabel);
-                PublishActionEvent(actor, nullResult, eventId);
+                PublishActionEvent(actor!, nullResult, eventId);
                 return nullResult;
             }
 

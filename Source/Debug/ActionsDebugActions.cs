@@ -192,6 +192,64 @@ namespace RimMind.Actions.Debug
             Log.Message($"[RimMind-Actions] drop_weapon ({weaponName}) -> {p.Name.ToStringShort}: {(ok ? "ok" : "failed (no weapon)")}");
         }
 
+        [DebugAction("RimMind Actions", "PawnAction: eat_food (selected)",
+            actionType = DebugActionType.Action)]
+        public static void TestEatFood()
+        {
+            var pawn = Find.Selector.SingleSelectedThing as Pawn;
+            if (!ValidatePawn(pawn, out var p)) return;
+            bool ok = RimMindActionsAPI.Execute("eat_food", p);
+            Log.Message($"[RimMind-Actions] eat_food -> {p.Name.ToStringShort}: {(ok ? "ok" : "failed (no reachable food)")}");
+        }
+
+        [DebugAction("RimMind Actions", "PawnAction: give_item Medicine (selected)",
+            actionType = DebugActionType.Action)]
+        public static void TestGiveItemMedicine()
+        {
+            var pawn = Find.Selector.SingleSelectedThing as Pawn;
+            if (!ValidatePawn(pawn, out var p)) return;
+            var target = p.Map?.mapPawns.FreeColonists.FirstOrDefault(x => x != p);
+            if (target == null)
+            {
+                Log.Warning("[RimMind-Actions] give_item requires at least two colonists on the map.");
+                return;
+            }
+            bool ok = RimMindActionsAPI.Execute("give_item", p, target: target, param: "Medicine");
+            Log.Message($"[RimMind-Actions] give_item Medicine -> {p.Name.ToStringShort} -> {target.Name.ToStringShort}: {(ok ? "ok" : "failed (no Medicine in inventory)")}");
+        }
+
+        [DebugAction("RimMind Actions", "PawnAction: tend_pawn (selected)",
+            actionType = DebugActionType.Action)]
+        public static void TestTendPawn()
+        {
+            var pawn = Find.Selector.SingleSelectedThing as Pawn;
+            if (!ValidatePawn(pawn, out var p)) return;
+            var injuredPawn = p.Map?.mapPawns.FreeColonists.FirstOrDefault(x => x != p && x.health.HasHediffsNeedingTend());
+            if (injuredPawn == null)
+            {
+                Log.Warning("[RimMind-Actions] tend_pawn: no injured colonist found on the map.");
+                return;
+            }
+            bool ok = RimMindActionsAPI.Execute("tend_pawn", p, target: injuredPawn);
+            Log.Message($"[RimMind-Actions] tend_pawn -> {p.Name.ToStringShort} -> {injuredPawn.Name.ToStringShort}: {(ok ? "ok" : "failed")}");
+        }
+
+        [DebugAction("RimMind Actions", "PawnAction: rescue_pawn (selected)",
+            actionType = DebugActionType.Action)]
+        public static void TestRescuePawn()
+        {
+            var pawn = Find.Selector.SingleSelectedThing as Pawn;
+            if (!ValidatePawn(pawn, out var p)) return;
+            var downedPawn = p.Map?.mapPawns.FreeColonists.FirstOrDefault(x => x != p && x.Downed);
+            if (downedPawn == null)
+            {
+                Log.Warning("[RimMind-Actions] rescue_pawn: no downed colonist found on the map.");
+                return;
+            }
+            bool ok = RimMindActionsAPI.Execute("rescue_pawn", p, target: downedPawn);
+            Log.Message($"[RimMind-Actions] rescue_pawn -> {p.Name.ToStringShort} -> {downedPawn.Name.ToStringShort}: {(ok ? "ok" : "failed")}");
+        }
+
         // ══════════════════════════════════════════════════════════
         // SocialActions
         // ══════════════════════════════════════════════════════════
@@ -203,40 +261,7 @@ namespace RimMind.Actions.Debug
             var pawn = Find.Selector.SingleSelectedThing as Pawn;
             if (!ValidatePawn(pawn, out var p)) return;
             bool ok = RimMindActionsAPI.Execute("social_relax", p);
-            Log.Message($"[RimMind-Actions] social_relax -> {p.Name.ToStringShort}: {(ok ? "ok (Catharsis + Joy timetable)" : "failed")}");
-        }
-
-        [DebugAction("RimMind Actions", "SocialAction: social_dining with other colonist (selected)",
-            actionType = DebugActionType.Action)]
-        public static void TestSocialDining()
-        {
-            var pawn = Find.Selector.SingleSelectedThing as Pawn;
-            if (!ValidatePawn(pawn, out var p)) return;
-            var target = p.Map?.mapPawns.FreeColonists.FirstOrDefault(x => x != p);
-            if (target == null)
-            {
-                Log.Warning("[RimMind-Actions] social_dining requires at least two colonists.");
-                return;
-            }
-
-            // 诊断：提前检查 InteractionDef 是否存在 + CanInteractNowWith 原因
-            var shareMealDef = DefDatabase<InteractionDef>.GetNamed("ShareMeal", false);
-            var chatDef = DefDatabase<InteractionDef>.GetNamed("ChatFriendly", false);
-            var intDef = shareMealDef ?? chatDef;
-            if (intDef == null)
-            {
-                Log.Warning("[RimMind-Actions] social_dining diag: ShareMeal and ChatFriendly InteractionDef both missing (ShareMeal may not exist in vanilla).");
-            }
-            else
-            {
-                bool canInteract = p.interactions.CanInteractNowWith(target, intDef);
-                Log.Message($"[RimMind-Actions] social_dining diag: using def={intDef.defName}, CanInteractNowWith={canInteract}, " +
-                            $"dist={p.Position.DistanceTo(target.Position):F1}, " +
-                            $"actor awake={!p.InBed()}, target awake={!target.InBed()}");
-            }
-
-            bool ok = RimMindActionsAPI.Execute("social_dining", p, target: target);
-            Log.Message($"[RimMind-Actions] social_dining {p.Name.ToStringShort} -> {target.Name.ToStringShort}: {(ok ? "ok" : "failed")}");
+            Log.Message($"[RimMind-Actions] social_relax -> {p.Name.ToStringShort}: {(ok ? "ok (Chitchat + Joy timetable)" : "failed")}");
         }
 
         // ══════════════════════════════════════════════════════════
@@ -253,14 +278,14 @@ namespace RimMind.Actions.Debug
             Log.Message($"[RimMind-Actions] inspire_work -> {p.Name.ToStringShort}: {(ok ? "ok (Frenzy_Work)" : "failed (already inspired or condition not met)")}");
         }
 
-        [DebugAction("RimMind Actions", "MoodAction: inspire_fight (selected)",
+        [DebugAction("RimMind Actions", "MoodAction: inspire_shoot (selected)",
             actionType = DebugActionType.Action)]
-        public static void TestInspireFight()
+        public static void TestInspireShoot()
         {
             var pawn = Find.Selector.SingleSelectedThing as Pawn;
             if (!ValidatePawn(pawn, out var p)) return;
-            bool ok = RimMindActionsAPI.Execute("inspire_fight", p);
-            Log.Message($"[RimMind-Actions] inspire_fight -> {p.Name.ToStringShort}: {(ok ? "ok (Frenzy_Shoot)" : "failed")}");
+            bool ok = RimMindActionsAPI.Execute("inspire_shoot", p);
+            Log.Message($"[RimMind-Actions] inspire_shoot -> {p.Name.ToStringShort}: {(ok ? "ok (Frenzy_Shoot)" : "failed")}");
         }
 
         [DebugAction("RimMind Actions", "MoodAction: inspire_trade (selected)",

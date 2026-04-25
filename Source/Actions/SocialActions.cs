@@ -1,55 +1,53 @@
+using System.Linq;
 using RimWorld;
 using Verse;
 using Verse.AI;
 
 namespace RimMind.Actions.Actions
 {
-    public class SocialDiningAction : IActionRule
-    {
-        public string IntentId => "social_dining";
-        public string DisplayName => "RimMind.Actions.DisplayName.SocialDining".Translate();
-        public RiskLevel RiskLevel => RiskLevel.Medium;
-        public string? ParameterSchema =>
-            "{\"type\":\"object\",\"properties\":{\"target\":{\"type\":\"string\",\"description\":\"Target pawn short name to share meal with\"}},\"required\":[\"target\"]}";
-
-        public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
-        {
-            if (target == null) return false;
-
-            var intDef = DefDatabase<InteractionDef>.GetNamed("ShareMeal", false)
-                      ?? DefDatabase<InteractionDef>.GetNamed("ChatFriendly", false);
-            if (intDef == null) return false;
-
-            if (!actor.interactions.CanInteractNowWith(target, intDef)) return false;
-            actor.interactions.TryInteractWith(target, intDef);
-
-            var diningThought = DefDatabase<ThoughtDef>.GetNamedSilentFail("AteMealInGoodEnvironment");
-            if (diningThought != null)
-            {
-                actor.needs?.mood?.thoughts?.memories?.TryGainMemory(diningThought);
-                target.needs?.mood?.thoughts?.memories?.TryGainMemory(diningThought);
-            }
-            return true;
-        }
-    }
-
     public class SocialRelaxAction : IActionRule
     {
         public string IntentId => "social_relax";
         public string DisplayName => "RimMind.Actions.DisplayName.SocialRelax".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
-        public string? ParameterSchema => null;
+        public bool IsJobBased => true;
+        public string? ParameterSchema =>
+            "{\"type\":\"object\",\"properties\":{\"target\":{\"type\":\"string\",\"description\":\"Target pawn short name to socialize with\"}},\"required\":[]}";
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
-            if (actor.needs?.mood?.thoughts?.memories == null) return false;
+            var intDef = DefDatabase<InteractionDef>.GetNamedSilentFail("Chitchat");
+            if (intDef == null) return false;
 
-            actor.needs.mood.thoughts.memories.TryGainMemory(ThoughtDefOf.Catharsis);
+            if (target != null && target != actor && actor.interactions.CanInteractNowWith(target, intDef))
+            {
+                actor.interactions.TryInteractWith(target, intDef);
+            }
+            else
+            {
+                var nearbyPawn = FindNearbySocializablePawn(actor, intDef);
+                if (nearbyPawn != null)
+                    actor.interactions.TryInteractWith(nearbyPawn, intDef);
+            }
 
             if (actor.timetable != null)
                 actor.timetable.SetAssignment(GenLocalDate.HourOfDay(actor), TimeAssignmentDefOf.Joy);
 
             return true;
+        }
+
+        private static Pawn? FindNearbySocializablePawn(Pawn actor, InteractionDef intDef)
+        {
+            float bestDist = 30f;
+            Pawn? best = null;
+            foreach (var mapPawn in actor.Map?.mapPawns?.AllPawnsSpawned ?? System.Linq.Enumerable.Empty<Pawn>())
+            {
+                if (mapPawn == actor || !mapPawn.RaceProps.Humanlike || mapPawn.Dead || mapPawn.Downed) continue;
+                if (!actor.interactions.CanInteractNowWith(mapPawn, intDef)) continue;
+                float dist = actor.Position.DistanceTo(mapPawn.Position);
+                if (dist < bestDist) { bestDist = dist; best = mapPawn; }
+            }
+            return best;
         }
     }
 
@@ -87,10 +85,10 @@ namespace RimMind.Actions.Actions
         }
     }
 
-    public class RomanceAcceptAction : IActionRule
+    public class RomanceAttemptAction : IActionRule
     {
-        public string IntentId => "romance_accept";
-        public string DisplayName => "RimMind.Actions.DisplayName.RomanceAccept".Translate();
+        public string IntentId => "romance_attempt";
+        public string DisplayName => "RimMind.Actions.DisplayName.RomanceAttempt".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
         public bool IsJobBased => true;
         public string? ParameterSchema =>

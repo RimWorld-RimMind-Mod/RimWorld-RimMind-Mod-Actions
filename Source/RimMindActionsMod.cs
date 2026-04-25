@@ -157,17 +157,16 @@ namespace RimMind.Actions
             RimMindActionsAPI.RegisterAction("set_work_priority", new SetWorkPriorityAction());
             RimMindActionsAPI.RegisterAction("drop_weapon", new DropWeaponAction());
 
-            RimMindActionsAPI.RegisterAction("social_dining", new SocialDiningAction());
             RimMindActionsAPI.RegisterAction("social_relax", new SocialRelaxAction());
             RimMindActionsAPI.RegisterAction("give_item", new GiveItemAction());
-            RimMindActionsAPI.RegisterAction("romance_accept", new RomanceAcceptAction());
+            RimMindActionsAPI.RegisterAction("romance_attempt", new RomanceAttemptAction());
             RimMindActionsAPI.RegisterAction("romance_breakup", new RomanceBreakupAction());
 
             RimMindActionsAPI.RegisterAction("recruit_agree", new RecruitAgreeAction());
             RimMindActionsAPI.RegisterAction("adjust_faction", new AdjustFactionAction());
 
             RimMindActionsAPI.RegisterAction("inspire_work", new InspireWorkAction());
-            RimMindActionsAPI.RegisterAction("inspire_fight", new InspireFightAction());
+            RimMindActionsAPI.RegisterAction("inspire_shoot", new InspireShootAction());
             RimMindActionsAPI.RegisterAction("inspire_trade", new InspireTradeAction());
             RimMindActionsAPI.RegisterAction("add_thought", new AddThoughtAction());
             RimMindActionsAPI.RegisterAction("trigger_mental_state", new TriggerMentalStateAction());
