@@ -193,8 +193,8 @@ return actionsRisk switch
 #### SocialActions（4 个）
 | intentId | 风险 | Job | 说明 | param | target | 实现要点 |
 |----------|------|-----|------|-------|--------|----------|
-| social_relax | Medium | Y | 社交休闲 | - | 可选（目标小人或自动寻找） | 有 target 时 TryInteractWith(Chitchat)；无 target 时 FindNearbySocializablePawn；设置 Timetable 为 Joy |
-| give_item | Medium | - | 赠送物品 | 物品关键词（大小写不敏感匹配 Label 或 defName） | 受赠小人 | 从 actor 背包找物品，`TryTransferToContainer` 直接转入 target 背包 |
+| social_relax | Medium | Y | 社交休闲 | - | 可选（目标小人或自动寻找） | 有 target 时 TryInteractWith(Chitchat)；无 target 时 FindNearbySocializablePawn；设置 Timetable 为 Joy。**注意**：IsJobBased=true 但不使用 TryTakeOrderedJob，requestQueueing 被忽略，批量执行时可能导致同 Pawn 后续动作队列逻辑异常 |
+| give_item | Medium | - | 赠送物品 | 物品关键词（大小写不敏感匹配 Label 或 defName） | 受赠小人 | 从 actor 背包找物品，`TryTransferToContainer` 直接转入 target 背包。**注意**：转移整组（stackCount），不支持数量参数 |
 | romance_attempt | Medium | Y | 发起恋爱 | - | 目标小人 | 距离内直接 TryInteractWith(RomanceAttempt)；距离外先 Goto 并返回 false |
 | romance_breakup | High | Y | 分手 | - | 目标小人 | 距离内直接 TryInteractWith(Breakup)；距离外先 Goto 并返回 false |
 
@@ -483,3 +483,5 @@ Dev 菜单（需开启开发模式）→ RimMind Actions：
 7. **ReferenceEqualityComparer**：ExecuteBatch 内部使用，按对象引用比较 Pawn（不依赖 Pawn.Equals 重写）
 8. **坐标解析**：统一使用 `ActionHelper.ParseCell`，新增坐标解析动作时直接调用
 9. **返回值语义**：Job 类动作中，若交互因距离不足而先排队 Goto，应返回 false（表示动作尚未完成）
+10. **Map null 防护缺失**：ForceRestAction、AssignWorkAction、MoveToAction 未检查 `actor.Map == null`（商队小人会 NRE），对比 EatFoodAction 已有防护
+11. **GetStructuredTools 忽略 pawn**：`ActionsBridge.GetAvailableTools(Pawn pawn)` 传入 pawn 但 API 层未使用，无法按 pawn 状态过滤可用工具
