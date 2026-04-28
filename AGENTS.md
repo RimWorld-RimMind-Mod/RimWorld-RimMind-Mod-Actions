@@ -40,6 +40,7 @@ RimMindActionsAPI.ExecuteBatch(IReadOnlyList<BatchActionIntent> intents)
 RimMindActionsAPI.GetSupportedIntents() / GetActionDescriptions() / GetRiskLevel(id)
 RimMindActionsAPI.GetWorkTargets(pawn, workTypeDef, max)
 RimMindActionsAPI.GetStructuredTools() / IsAllowed(id)
+RimMindActionsAPI.GetActionHintData(pawn, intentId)  // 获取意图提示数据(如可食用食物列表)
 
 // 延迟队列
 DelayedActionQueue.Instance.Enqueue(intentId, actor, target?, delaySeconds)
@@ -74,8 +75,8 @@ DelayedActionQueue.Instance.CancelForPawn(pawn)
 | 9 | cancel_job | L | - | 中止当前任务 |
 | 10 | set_work_priority | M | - | 调整工作优先级(WorkType,0-4) |
 | 11 | drop_weapon | H | - | 丢弃武器 |
-| 12 | social_relax | M | Y | 社交休闲 |
-| 13 | give_item | M | - | 赠送物品(param=关键词) |
+| 12 | social_relax | M | - | 社交休闲(TryInteractWith+timetable) |
+| 13 | give_item | M | - | 赠送物品(param=关键词,整组转移) |
 | 14 | romance_attempt | M | Y | 发起恋爱 |
 | 15 | romance_breakup | H | Y | 分手 |
 | 16 | inspire_work/shoot/trade | H | - | 触发灵感 |
@@ -100,6 +101,7 @@ DelayedActionQueue.Instance.CancelForPawn(pawn)
 - 新动作标注正确的 `RiskLevel` 和 `IsJobBased`
 - 修改动作行为后更新本文件清单表
 - 所有游戏API调用在主线程，后台用 `DelayedActionQueue`
+- Job类动作入口检查 `actor.Map == null`（防商队小人NRE）
 
 ### ⚠️ 先询问
 - 修改现有 `RiskLevel` 等级(影响Advisor审批)
