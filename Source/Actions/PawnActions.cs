@@ -459,6 +459,7 @@ namespace RimMind.Actions.Actions
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
+            if (actor.Map == null) return false;
             if (string.IsNullOrEmpty(param)) return false;
 
             var parts = param!.Split(',');
