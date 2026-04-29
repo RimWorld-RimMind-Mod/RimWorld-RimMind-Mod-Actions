@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Linq;
+using RimMind.Actions.Queue;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -7,6 +9,12 @@ namespace RimMind.Actions.Actions
 {
     public class SocialRelaxAction : IActionRule
     {
+        private const string RestoreParamPrefix = "RIMIND_TT_RESTORE:";
+        private const float RestoreDelaySeconds = 90f;
+
+        private static readonly Dictionary<int, (TimeAssignmentDef def, int hour)> _pendingRestores =
+            new Dictionary<int, (TimeAssignmentDef def, int hour)>();
+
         public string IntentId => "social_relax";
         public string DisplayName => "RimMind.Actions.DisplayName.SocialRelax".Translate();
         public RiskLevel RiskLevel => RiskLevel.Medium;
@@ -16,6 +24,16 @@ namespace RimMind.Actions.Actions
 
         public bool Execute(Pawn actor, Pawn? target, string? param, bool requestQueueing = false)
         {
+            if (param != null && param.StartsWith(RestoreParamPrefix))
+            {
+                if (_pendingRestores.TryGetValue(actor.thingIDNumber, out var restore))
+                {
+                    actor.timetable?.SetAssignment(restore.hour, restore.def);
+                    _pendingRestores.Remove(actor.thingIDNumber);
+                }
+                return true;
+            }
+
             var intDef = DefDatabase<InteractionDef>.GetNamedSilentFail("Chitchat");
             if (intDef == null) return false;
 
@@ -31,7 +49,24 @@ namespace RimMind.Actions.Actions
             }
 
             if (actor.timetable != null)
-                actor.timetable.SetAssignment(GenLocalDate.HourOfDay(actor), TimeAssignmentDefOf.Joy);
+            {
+                int hour = GenLocalDate.HourOfDay(actor);
+                TimeAssignmentDef originalDef = actor.timetable.GetAssignment(hour);
+                if (originalDef != TimeAssignmentDefOf.Joy)
+                {
+                    _pendingRestores[actor.thingIDNumber] = (originalDef, hour);
+                    actor.timetable.SetAssignment(hour, TimeAssignmentDefOf.Joy);
+                    DelayedActionQueue.Instance?.Enqueue(
+                        IntentId, actor, null,
+                        RestoreParamPrefix,
+                        "restore timetable after social_relax",
+                        RestoreDelaySeconds);
+                }
+                else
+                {
+                    actor.timetable.SetAssignment(hour, TimeAssignmentDefOf.Joy);
+                }
+            }
 
             return true;
         }
@@ -79,8 +114,9 @@ namespace RimMind.Actions.Actions
             }
             if (found == null) return false;
 
+            int stackToTake = System.Math.Min(1, found.stackCount);
             int transferred = actor.inventory.innerContainer.TryTransferToContainer(
-                found, target.inventory.innerContainer, found.stackCount, out _);
+                found, target.inventory.innerContainer, stackToTake, out _);
             return transferred > 0;
         }
     }

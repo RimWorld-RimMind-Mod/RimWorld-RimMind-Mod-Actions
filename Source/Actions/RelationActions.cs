@@ -28,16 +28,16 @@ namespace RimMind.Actions.Actions
 
             try
             {
-                // 从原 Lord 移除
-                recruit.GetLord()?.Notify_PawnLost(recruit, PawnLostCondition.ChangedFaction, null);
+                var lord = recruit.GetLord();
+                if (lord != null)
+                {
+                    lord.RemovePawn(recruit);
+                }
 
-                // 变更派系
                 recruit.SetFaction(Faction.OfPlayer, recruiter);
 
-                // 清除访客状态
                 recruit.guest?.SetGuestStatus(null);
 
-                // 招募成功通知信件
                 Find.LetterStack.ReceiveLetter(
                     "LetterLabelMessageRecruitSuccess".Translate() + ": " + recruit.LabelShort,
                     "MessageRecruitSuccess".Translate(recruiter?.LabelShort ?? "AI", recruit.LabelShort, Faction.OfPlayer.Name),
@@ -48,7 +48,7 @@ namespace RimMind.Actions.Actions
             }
             catch (Exception e)
             {
-                Log.Error($"[RimMind-Actions] recruit_agree failed: {e}");
+                Log.Warning($"[RimMind-Actions] recruit_agree failed: {e}");
                 return false;
             }
         }

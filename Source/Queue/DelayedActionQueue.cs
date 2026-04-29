@@ -83,7 +83,11 @@ namespace RimMind.Actions.Queue
         public override void GameComponentTick()
         {
             DrainIncoming();
+            ProcessQueue();
+        }
 
+        public void ProcessQueue()
+        {
             if (_queue.Count == 0) return;
 
             for (int i = _queue.Count - 1; i >= 0; i--)
