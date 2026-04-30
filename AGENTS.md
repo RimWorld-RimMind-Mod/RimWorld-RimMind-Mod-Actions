@@ -56,7 +56,7 @@ DelayedActionQueue.Instance.CancelForPawn(pawn)
 | 等级 | 示例 |
 |------|------|
 | Low | move_to, cancel_job, assign_work, undraft |
-| Medium | force_rest, draft, tend_pawn, rescue_pawn, eat_food, social_relax, add_thought |
+| Medium | force_rest, draft, tend_pawn, rescue_pawn, eat_food, social_relax, add_thought, give_item, romance_attempt, set_work_priority |
 | High | arrest_pawn, drop_weapon, romance_breakup, recruit_agree, adjust_faction, inspire_* |
 | Critical | trigger_mental_state, trigger_incident |
 
@@ -68,23 +68,26 @@ DelayedActionQueue.Instance.CancelForPawn(pawn)
 | 2 | assign_work | L | Y | 指定工作(param=WorkTypeDef/@x,z) |
 | 3 | move_to | L | Y | 移动到坐标(x,z) |
 | 4 | eat_food | M | Y | 吃食物(param=关键词,可选) |
-| 5 | draft/undraft | M/L | - | 征召/解除 |
-| 6 | tend_pawn | M | Y | 救治(target必填) |
-| 7 | rescue_pawn | M | Y | 救援(target需Downed) |
-| 8 | arrest_pawn | H | Y | 逮捕(target必填) |
-| 9 | cancel_job | L | - | 中止当前任务 |
-| 10 | set_work_priority | M | - | 调整工作优先级(WorkType,0-4) |
-| 11 | drop_weapon | H | - | 丢弃武器 |
-| 12 | social_relax | M | - | 社交休闲(TryInteractWith+timetable) |
-| 13 | give_item | M | - | 赠送物品(param=关键词,整组转移) |
-| 14 | romance_attempt | M | Y | 发起恋爱 |
-| 15 | romance_breakup | H | Y | 分手 |
-| 16 | inspire_work/shoot/trade | H | - | 触发灵感 |
-| 17 | add_thought | M | - | 添加Thought(param=defName) |
-| 18 | trigger_mental_state | C | - | 触发精神崩溃(仅玩家殖民者) |
-| 19 | recruit_agree | H | - | 同意招募(actor=被招募NPC) |
-| 20 | adjust_faction | H | - | 修改派系关系(param=FactionDef,delta) |
-| 21 | trigger_incident | C | - | 触发事件(param=defName) |
+| 5 | draft | M | - | 征召 |
+| 6 | undraft | L | - | 解除征召 |
+| 7 | tend_pawn | M | Y | 救治(target必填) |
+| 8 | rescue_pawn | M | Y | 救援(target需Downed) |
+| 9 | arrest_pawn | H | Y | 逮捕(target必填) |
+| 10 | cancel_job | L | - | 中止当前任务 |
+| 11 | set_work_priority | M | - | 调整工作优先级(WorkType,0-4) |
+| 12 | drop_weapon | H | - | 丢弃武器 |
+| 13 | social_relax | M | - | 社交休闲(TryInteractWith+timetable临时Joy+90s后恢复) |
+| 14 | give_item | M | - | 赠送物品(param=关键词,转移1个) |
+| 15 | romance_attempt | M | Y | 发起恋爱 |
+| 16 | romance_breakup | H | Y | 分手 |
+| 17 | inspire_work | H | - | 触发工作灵感(Frenzy_Work) |
+| 18 | inspire_shoot | H | - | 触发射击灵感(Frenzy_Shoot) |
+| 19 | inspire_trade | H | - | 触发交易灵感(Inspired_Trade) |
+| 20 | add_thought | M | - | 添加Thought(param=defName) |
+| 21 | trigger_mental_state | C | - | 触发精神崩溃(仅玩家殖民者) |
+| 22 | recruit_agree | H | - | 同意招募(actor=被招募NPC) |
+| 23 | adjust_faction | H | - | 修改派系关系(param=FactionDef,delta) |
+| 24 | trigger_incident | C | - | 触发事件(param=defName) |
 
 ## 代码约定
 
@@ -112,3 +115,9 @@ DelayedActionQueue.Instance.CancelForPawn(pawn)
 - 后台线程调用 `RimMindActionsAPI.Execute`
 - 仅用 `StartJob` 打断任务
 - 修改 `RiskLevel` 枚举成员名
+
+## 已知问题摘要
+
+详见 `docs/06-problem/RimMind-Actions.md`，当前高优先级：
+- `_pendingRestores` 不跨存档持久化（social_relax timetable 恢复失效）
+- 5个 Job 类动作缺少 Map null 检查（tend_pawn/rescue_pawn/arrest_pawn/romance_attempt/romance_breakup）
