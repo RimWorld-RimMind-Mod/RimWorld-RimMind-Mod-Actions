@@ -327,7 +327,7 @@ namespace RimMind.Actions
         {
             if (actor == null) return;
             string npcId = $"NPC-{actor.thingIDNumber}";
-            global::RimMind.Core.AgentBus.AgentBus.Publish(new ActionEvent(npcId, actor.thingIDNumber, result.ActionName, result.Success, result.Reason, result.TargetLabel, eventId ?? ""));
+            RimMindAPI.GetEventBus().Publish(new ActionEvent(npcId, actor.thingIDNumber, result.ActionName, result.Success, result.Reason, result.TargetLabel, eventId ?? ""));
         }
 
     }
