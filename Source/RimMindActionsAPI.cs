@@ -1,9 +1,9 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using RimMind.Actions.Actions;
+using RimMind.Contracts.Client;
 using RimMind.Core;
 using RimMind.Kernel.Bus;
-using RimMind.Core.Client;
 using Verse;
 
 namespace RimMind.Actions
@@ -327,7 +327,7 @@ namespace RimMind.Actions
         {
             if (actor == null) return;
             string npcId = $"NPC-{actor.thingIDNumber}";
-            RimMindAPI.GetEventBus().Publish(new ActionEvent(npcId, actor.thingIDNumber, result.ActionName, result.Success, result.Reason, result.TargetLabel, eventId ?? ""));
+            RimMindAPI.GetEventBus().Publish(new ActionEvent(npcId, actor.thingIDNumber, result.ActionName, result.Success, result.Reason, eventId ?? ""));
         }
 
     }

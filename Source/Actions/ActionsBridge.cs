@@ -1,34 +1,47 @@
 using System.Collections.Generic;
-using RimMind.Core.Agent;
-using RimMind.Core.Client;
+using RimMind.Contracts.Client;
+using RimMind.Contracts.Extensions;
 using Verse;
 
 namespace RimMind.Actions
 {
     public class ActionsBridge : IAgentActionBridge
     {
-        public bool Execute(string intentId, Pawn actor, Pawn? target, string? param, string? eventId = null)
+        public void ExecuteAction(string npcId, string actionName, string[]? args = null)
         {
-            return RimMindActionsAPI.Execute(intentId, actor, target, param, eventId: eventId);
+            var pawn = FindById(npcId);
+            if (pawn != null)
+                RimMindActionsAPI.Execute(actionName, pawn, null, args != null ? string.Join(" ", args) : null);
         }
 
-        public List<StructuredTool> GetAvailableTools(Pawn pawn)
+        public bool CanExecute(string npcId, string actionName)
+        {
+            return RimMindActionsAPI.IsAllowed(actionName);
+        }
+
+        public bool CanExecute(object pawn, string action)
+        {
+            return RimMindActionsAPI.IsAllowed(action);
+        }
+
+        public void Execute(object pawn, string action, string? targetName = null)
+        {
+            if (pawn is Pawn p)
+                RimMindActionsAPI.Execute(action, p, null, targetName);
+        }
+
+        public List<StructuredTool>? GetAvailableTools(object pawn)
         {
             return RimMindActionsAPI.GetStructuredTools();
         }
 
-        Core.Agent.RiskLevel? IAgentActionBridge.GetRiskLevel(string intentId)
+        private static Pawn? FindById(string npcId)
         {
-            var actionsRisk = RimMindActionsAPI.GetRiskLevel(intentId);
-            if (actionsRisk == null) return null;
-            return actionsRisk switch
-            {
-                RiskLevel.Low => Core.Agent.RiskLevel.Low,
-                RiskLevel.Medium => Core.Agent.RiskLevel.Medium,
-                RiskLevel.High => Core.Agent.RiskLevel.High,
-                RiskLevel.Critical => Core.Agent.RiskLevel.Critical,
-                _ => Core.Agent.RiskLevel.High
-            };
+            if (string.IsNullOrEmpty(npcId)) return null;
+            foreach (var map in Find.Maps)
+                foreach (var p in map.mapPawns.AllPawns)
+                    if ($"NPC-{p.thingIDNumber}" == npcId) return p;
+            return null;
         }
     }
 }
