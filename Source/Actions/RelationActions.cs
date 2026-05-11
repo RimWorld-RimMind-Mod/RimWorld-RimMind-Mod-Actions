@@ -1,4 +1,5 @@
 using System;
+using RimMind.Contracts.Result;
 using RimWorld;
 using RimWorld.Planet;
 using Verse;
@@ -48,7 +49,7 @@ namespace RimMind.Actions.Actions
             }
             catch (Exception e)
             {
-                Log.Warning($"[RimMind-Actions] recruit_agree failed: {e}");
+                RimMindErrors.Warn($"[RimMind-Actions] recruit_agree failed: {e}");
                 return false;
             }
         }
@@ -85,7 +86,7 @@ namespace RimMind.Actions.Actions
             }
             else
             {
-                Log.Warning($"[RimMind-Actions] adjust_faction: bad param '{param}' (expected 'FactionDef,delta' or just 'delta')");
+                RimMindErrors.Warn($"[RimMind-Actions] adjust_faction: bad param '{param}' (expected 'FactionDef,delta' or just 'delta')");
                 return false;
             }
 

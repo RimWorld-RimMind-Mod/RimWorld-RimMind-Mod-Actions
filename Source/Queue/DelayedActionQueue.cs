@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using RimMind.Contracts.Result;
 using Verse;
 
 namespace RimMind.Actions.Queue
@@ -31,7 +32,7 @@ namespace RimMind.Actions.Queue
             int maxSize = RimMindActionsMod.Settings?.delayedQueueMaxSize ?? 50;
             if (_incoming.Count >= maxSize)
             {
-                Log.Warning($"[RimMind-Actions] DelayedActionQueue: queue full ({maxSize}), dropping '{intentId}'");
+                RimMindErrors.Warn($"[RimMind-Actions] DelayedActionQueue: queue full ({maxSize}), dropping '{intentId}'");
                 return;
             }
 
@@ -113,7 +114,7 @@ namespace RimMind.Actions.Queue
                 }
                 catch (Exception e)
                 {
-                    Log.Error($"[RimMind-Actions] DelayedActionQueue: execute '{pending.IntentId}' failed: {e}");
+                    RimMindErrors.Error($"[RimMind-Actions] DelayedActionQueue: execute '{pending.IntentId}' failed: {e}");
                 }
                 _queue.RemoveAt(i);
             }
@@ -126,7 +127,7 @@ namespace RimMind.Actions.Queue
             {
                 if (_queue.Count >= maxSize)
                 {
-                    Log.Warning($"[RimMind-Actions] DelayedActionQueue: queue full ({maxSize}), dropping '{action.IntentId}'");
+                    RimMindErrors.Warn($"[RimMind-Actions] DelayedActionQueue: queue full ({maxSize}), dropping '{action.IntentId}'");
                     continue;
                 }
                 int jitterTicks = (int)(action.TicksRemaining * 0.2f * (Rand.Value * 2f - 1f));

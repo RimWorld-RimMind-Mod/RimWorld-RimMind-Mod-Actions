@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using RimMind.Actions.Actions;
 using RimMind.Contracts.Client;
+using RimMind.Contracts.Result;
 using RimMind.Core;
 using RimMind.Kernel.Bus;
 using Verse;
@@ -86,7 +87,7 @@ namespace RimMind.Actions
 
             if (!_rules.TryGetValue(intentId, out var rule))
             {
-                Log.Warning($"[RimMind-Actions] Unknown intentId: {intentId}");
+                RimMindErrors.Warn($"[RimMind-Actions] Unknown intentId: {intentId}");
                 var failResult = ActionResult.Failed(intentId, "Unknown intent", targetLabel);
                 PublishActionEvent(actor, failResult, eventId);
                 return failResult;
@@ -165,7 +166,7 @@ namespace RimMind.Actions
 
                 if (!_rules.TryGetValue(intent.IntentId, out var rule))
                 {
-                    Log.Warning($"[RimMind-Actions] ExecuteBatch: Unknown intentId: {intent.IntentId}");
+                    RimMindErrors.Warn($"[RimMind-Actions] ExecuteBatch: Unknown intentId: {intent.IntentId}");
                     results.Add(ActionResult.Failed(intent.IntentId, "Unknown intent", targetLabel));
                     continue;
                 }

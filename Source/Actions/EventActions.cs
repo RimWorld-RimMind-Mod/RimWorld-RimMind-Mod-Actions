@@ -1,3 +1,4 @@
+using RimMind.Contracts.Result;
 using RimWorld;
 using Verse;
 
@@ -22,7 +23,7 @@ namespace RimMind.Actions.Actions
             var incidentDef = DefDatabase<IncidentDef>.GetNamedSilentFail(param!);
             if (incidentDef == null)
             {
-                Log.Warning($"[RimMind-Actions] trigger_incident: unknown IncidentDef '{param}'");
+                RimMindErrors.Warn($"[RimMind-Actions] trigger_incident: unknown IncidentDef '{param}'");
                 return false;
             }
 

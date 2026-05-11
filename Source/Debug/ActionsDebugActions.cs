@@ -1,5 +1,6 @@
 using LudeonTK;
 using RimMind.Actions.Queue;
+using RimMind.Contracts.Result;
 using RimWorld;
 using System.Collections.Generic;
 using System.Linq;
@@ -42,7 +43,7 @@ namespace RimMind.Actions.Debug
             var pawn = Find.Selector.SingleSelectedThing as Pawn;
             if (pawn == null)
             {
-                Log.Warning("[RimMind-Actions] Please select a pawn on the map first.");
+                RimMindErrors.Warn("[RimMind-Actions] Please select a pawn on the map first.");
                 return;
             }
 
@@ -68,7 +69,7 @@ namespace RimMind.Actions.Debug
             var queue = DelayedActionQueue.Instance;
             if (queue == null)
             {
-                Log.Warning("[RimMind-Actions] DelayedActionQueue not initialized (requires a loaded save).");
+                RimMindErrors.Warn("[RimMind-Actions] DelayedActionQueue not initialized (requires a loaded save).");
                 return;
             }
 
@@ -211,7 +212,7 @@ namespace RimMind.Actions.Debug
             var target = p.Map?.mapPawns.FreeColonists.FirstOrDefault(x => x != p);
             if (target == null)
             {
-                Log.Warning("[RimMind-Actions] give_item requires at least two colonists on the map.");
+                RimMindErrors.Warn("[RimMind-Actions] give_item requires at least two colonists on the map.");
                 return;
             }
             bool ok = RimMindActionsAPI.Execute("give_item", p, target: target, param: "Medicine");
@@ -227,7 +228,7 @@ namespace RimMind.Actions.Debug
             var injuredPawn = p.Map?.mapPawns.FreeColonists.FirstOrDefault(x => x != p && x.health.HasHediffsNeedingTend());
             if (injuredPawn == null)
             {
-                Log.Warning("[RimMind-Actions] tend_pawn: no injured colonist found on the map.");
+                RimMindErrors.Warn("[RimMind-Actions] tend_pawn: no injured colonist found on the map.");
                 return;
             }
             bool ok = RimMindActionsAPI.Execute("tend_pawn", p, target: injuredPawn);
@@ -243,7 +244,7 @@ namespace RimMind.Actions.Debug
             var downedPawn = p.Map?.mapPawns.FreeColonists.FirstOrDefault(x => x != p && x.Downed);
             if (downedPawn == null)
             {
-                Log.Warning("[RimMind-Actions] rescue_pawn: no downed colonist found on the map.");
+                RimMindErrors.Warn("[RimMind-Actions] rescue_pawn: no downed colonist found on the map.");
                 return;
             }
             bool ok = RimMindActionsAPI.Execute("rescue_pawn", p, target: downedPawn);
@@ -325,7 +326,7 @@ namespace RimMind.Actions.Debug
         {
             var pawn = Find.Selector.SingleSelectedThing as Pawn;
             if (!ValidatePawn(pawn, out var p)) return;
-            Log.Warning($"[RimMind-Actions] [CRITICAL] Triggering mental break (Wander_Sad) for {p.Name.ToStringShort}...");
+            RimMindErrors.Warn($"[RimMind-Actions] [CRITICAL] Triggering mental break (Wander_Sad) for {p.Name.ToStringShort}...");
             bool ok = RimMindActionsAPI.Execute("trigger_mental_state", p, param: "Wander_Sad");
             Log.Message($"[RimMind-Actions] trigger_mental_state -> {p.Name.ToStringShort}: {(ok ? "ok" : "failed (already in mental state / in combat)")}");
         }
@@ -365,10 +366,10 @@ namespace RimMind.Actions.Debug
         public static void TestTriggerIncidentResourcePod()
         {
             var map = Find.CurrentMap;
-            if (map == null) { Log.Warning("[RimMind-Actions] No active map."); return; }
+            if (map == null) { RimMindErrors.Warn("[RimMind-Actions] No active map."); return; }
             var colonist = map.mapPawns.FreeColonists.FirstOrDefault();
-            if (colonist == null) { Log.Warning("[RimMind-Actions] No colonist found."); return; }
-            Log.Warning("[RimMind-Actions] [CRITICAL] Triggering ResourcePodCrash...");
+            if (colonist == null) { RimMindErrors.Warn("[RimMind-Actions] No colonist found."); return; }
+            RimMindErrors.Warn("[RimMind-Actions] [CRITICAL] Triggering ResourcePodCrash...");
             bool ok = RimMindActionsAPI.Execute("trigger_incident", colonist, param: "ResourcePodCrash");
             Log.Message($"[RimMind-Actions] trigger_incident ResourcePodCrash: {(ok ? "ok" : "failed (condition not met or Def missing)")}");
         }
@@ -495,11 +496,11 @@ namespace RimMind.Actions.Debug
         public static void TestBatchMultiPawn()
         {
             var map = Find.CurrentMap;
-            if (map == null) { Log.Warning("[RimMind-Actions] No active map."); return; }
+            if (map == null) { RimMindErrors.Warn("[RimMind-Actions] No active map."); return; }
             var colonists = map.mapPawns.FreeColonists.Take(3).ToList();
             if (colonists.Count < 2)
             {
-                Log.Warning("[RimMind-Actions] Batch multi-pawn test requires at least 2 colonists.");
+                RimMindErrors.Warn("[RimMind-Actions] Batch multi-pawn test requires at least 2 colonists.");
                 return;
             }
 
@@ -549,7 +550,7 @@ namespace RimMind.Actions.Debug
             var pawn = Find.Selector.SingleSelectedThing as Pawn;
             if (!ValidatePawn(pawn, out var p)) return;
             var queue = DelayedActionQueue.Instance;
-            if (queue == null) { Log.Warning("[RimMind-Actions] DelayedActionQueue not initialized."); return; }
+            if (queue == null) { RimMindErrors.Warn("[RimMind-Actions] DelayedActionQueue not initialized."); return; }
             queue.Enqueue("force_rest", p, null, null, "[Debug] Delayed force_rest in 3s", delaySeconds: 3f);
             Log.Message($"[RimMind-Actions] force_rest enqueued with delay (3s) -> {p.Name.ToStringShort}");
         }
@@ -561,7 +562,7 @@ namespace RimMind.Actions.Debug
             var pawn = Find.Selector.SingleSelectedThing as Pawn;
             if (!ValidatePawn(pawn, out var p)) return;
             var queue = DelayedActionQueue.Instance;
-            if (queue == null) { Log.Warning("[RimMind-Actions] DelayedActionQueue not initialized."); return; }
+            if (queue == null) { RimMindErrors.Warn("[RimMind-Actions] DelayedActionQueue not initialized."); return; }
             queue.CancelForPawn(p);
             Log.Message($"[RimMind-Actions] Cancelled all delayed actions for {p.Name.ToStringShort}.");
         }
@@ -593,12 +594,12 @@ namespace RimMind.Actions.Debug
             result = null!;
             if (pawn == null)
             {
-                Log.Warning("[RimMind-Actions] Please select a pawn on the map first before opening Dev menu.");
+                RimMindErrors.Warn("[RimMind-Actions] Please select a pawn on the map first before opening Dev menu.");
                 return false;
             }
             if (!pawn.IsColonist)
             {
-                Log.Warning($"[RimMind-Actions] {pawn.Name.ToStringShort} is not a colonist, skipping.");
+                RimMindErrors.Warn($"[RimMind-Actions] {pawn.Name.ToStringShort} is not a colonist, skipping.");
                 return false;
             }
             result = pawn;
@@ -629,16 +630,16 @@ namespace RimMind.Actions.Debug
             colonist = null;
 
             var map = Find.CurrentMap;
-            if (map == null) { Log.Warning("[RimMind-Actions] No active map."); return false; }
+            if (map == null) { RimMindErrors.Warn("[RimMind-Actions] No active map."); return false; }
 
             colonist = map.mapPawns.FreeColonists.FirstOrDefault();
-            if (colonist == null) { Log.Warning("[RimMind-Actions] No colonist found."); return false; }
+            if (colonist == null) { RimMindErrors.Warn("[RimMind-Actions] No colonist found."); return false; }
 
             faction = Find.FactionManager.AllFactions
                 .FirstOrDefault(f => !f.IsPlayer && !f.defeated && f.def.defName.Contains("Outlander"));
             faction ??= Find.FactionManager.AllFactions.FirstOrDefault(f => !f.IsPlayer && !f.defeated);
 
-            if (faction == null) { Log.Warning("[RimMind-Actions] No usable faction found."); return false; }
+            if (faction == null) { RimMindErrors.Warn("[RimMind-Actions] No usable faction found."); return false; }
             return true;
         }
     }

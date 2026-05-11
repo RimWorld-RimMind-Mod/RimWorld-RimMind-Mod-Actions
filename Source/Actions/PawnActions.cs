@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using RimMind.Contracts.Result;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -54,7 +55,7 @@ namespace RimMind.Actions.Actions
                               .OfType<Building_Bed>()
                               .FirstOrDefault();
                 if (bed == null)
-                    Log.Warning($"[RimMind-Actions] force_rest: no bed found at {param}, falling back to auto-find");
+                    RimMindErrors.Warn($"[RimMind-Actions] force_rest: no bed found at {param}, falling back to auto-find");
             }
 
             // 次选：target Pawn 的床
@@ -131,7 +132,7 @@ namespace RimMind.Actions.Actions
                 forcedCell = ActionHelper.ParseCell(cellPart);
                 if (forcedCell == null)
                 {
-                    Log.Warning($"[RimMind-Actions] assign_work: cannot parse cell '{cellPart}', falling back to auto-target");
+                    RimMindErrors.Warn($"[RimMind-Actions] assign_work: cannot parse cell '{cellPart}', falling back to auto-target");
                 }
             }
             else
@@ -142,7 +143,7 @@ namespace RimMind.Actions.Actions
             var workType = DefDatabase<WorkTypeDef>.GetNamedSilentFail(workTypeName);
             if (workType == null)
             {
-                Log.Warning($"[RimMind-Actions] assign_work: unknown WorkTypeDef '{workTypeName}'");
+                RimMindErrors.Warn($"[RimMind-Actions] assign_work: unknown WorkTypeDef '{workTypeName}'");
                 return false;
             }
             if (actor.workSettings == null || actor.workSettings.GetPriority(workType) <= 0)
@@ -163,7 +164,7 @@ namespace RimMind.Actions.Actions
             {
                 if (!cell.InBounds(actor.Map))
                 {
-                    Log.Warning($"[RimMind-Actions] assign_work: cell {cell} out of map bounds");
+                    RimMindErrors.Warn($"[RimMind-Actions] assign_work: cell {cell} out of map bounds");
                     return false;
                 }
 
@@ -193,12 +194,12 @@ namespace RimMind.Actions.Actions
                     }
                 }
 
-                Log.Warning($"[RimMind-Actions] assign_work: no {workType.defName} work target found at cell {cell}");
+                RimMindErrors.Warn($"[RimMind-Actions] assign_work: no {workType.defName} work target found at cell {cell}");
                 return false;
             }
             catch (Exception e)
             {
-                Log.Warning($"[RimMind-Actions] ExecuteAtCell: {workType.defName} threw at {cell}: {e.Message}");
+                RimMindErrors.Warn($"[RimMind-Actions] ExecuteAtCell: {workType.defName} threw at {cell}: {e.Message}");
                 return false;
             }
         }
@@ -224,7 +225,7 @@ namespace RimMind.Actions.Actions
                     }
                     catch (Exception e)
                     {
-                        Log.Warning($"[RimMind-Actions] ExecuteAuto: {wg.defName} threw for {thing}: {e.Message}");
+                        RimMindErrors.Warn($"[RimMind-Actions] ExecuteAuto: {wg.defName} threw for {thing}: {e.Message}");
                     }
                 }
             }
@@ -269,7 +270,7 @@ namespace RimMind.Actions.Actions
                     try { cells = scanner.PotentialWorkCellsGlobal(pawn); }
                     catch (Exception e)
                     {
-                        Log.Warning($"[RimMind-Actions] GetWorkTargets: PotentialWorkCellsGlobal threw for {wg.defName}: {e.Message}");
+                        RimMindErrors.Warn($"[RimMind-Actions] GetWorkTargets: PotentialWorkCellsGlobal threw for {wg.defName}: {e.Message}");
                         continue;
                     }
                     if (cells == null) continue;
@@ -281,7 +282,7 @@ namespace RimMind.Actions.Actions
                         try { hasJob = scanner.HasJobOnCell(pawn, cell, false); }
                         catch (Exception ex)
                         {
-                            Log.Warning($"[RimMind-Actions] GetWorkTargets: HasJobOnCell threw for {wg.defName} at {cell}: {ex.Message}");
+                            RimMindErrors.Warn($"[RimMind-Actions] GetWorkTargets: HasJobOnCell threw for {wg.defName} at {cell}: {ex.Message}");
                         }
                         if (!hasJob) continue;
 
@@ -308,7 +309,7 @@ namespace RimMind.Actions.Actions
                     try { things = scanner.PotentialWorkThingsGlobal(pawn); }
                     catch (Exception e)
                     {
-                        Log.Warning($"[RimMind-Actions] GetWorkTargets: PotentialWorkThingsGlobal threw for {wg.defName}: {e.Message}");
+                        RimMindErrors.Warn($"[RimMind-Actions] GetWorkTargets: PotentialWorkThingsGlobal threw for {wg.defName}: {e.Message}");
                         continue;
                     }
                     if (things == null) continue;
@@ -320,7 +321,7 @@ namespace RimMind.Actions.Actions
                         try { hasJob = scanner.HasJobOnThing(pawn, thing, false); }
                         catch (Exception ex)
                         {
-                            Log.Warning($"[RimMind-Actions] GetWorkTargets: HasJobOnThing threw for {wg.defName}: {ex.Message}");
+                            RimMindErrors.Warn($"[RimMind-Actions] GetWorkTargets: HasJobOnThing threw for {wg.defName}: {ex.Message}");
                         }
                         if (!hasJob) continue;
 
@@ -467,14 +468,14 @@ namespace RimMind.Actions.Actions
                 !int.TryParse(parts[0].Trim(), out int x) ||
                 !int.TryParse(parts[1].Trim(), out int z))
             {
-                Log.Warning($"[RimMind-Actions] move_to: bad param '{param}' (expected 'x,z')");
+                RimMindErrors.Warn($"[RimMind-Actions] move_to: bad param '{param}' (expected 'x,z')");
                 return false;
             }
 
             var cell = new IntVec3(x, 0, z);
             if (!cell.InBounds(actor.Map))
             {
-                Log.Warning($"[RimMind-Actions] move_to: cell {cell} out of bounds");
+                RimMindErrors.Warn($"[RimMind-Actions] move_to: cell {cell} out of bounds");
                 return false;
             }
 
@@ -616,7 +617,7 @@ namespace RimMind.Actions.Actions
             var parts = param!.Split(',');
             if (parts.Length < 2 || !int.TryParse(parts[1].Trim(), out int priority))
             {
-                Log.Warning($"[RimMind-Actions] set_work_priority: bad param '{param}' (expected 'WorkType,priority')");
+                RimMindErrors.Warn($"[RimMind-Actions] set_work_priority: bad param '{param}' (expected 'WorkType,priority')");
                 return false;
             }
 
@@ -670,7 +671,7 @@ namespace RimMind.Actions.Actions
             Thing? food = FindFood(actor, param);
             if (food == null)
             {
-                Log.Warning($"[RimMind-Actions] eat_food: no food found (param='{param}') for {actor.Name.ToStringShort}");
+                RimMindErrors.Warn($"[RimMind-Actions] eat_food: no food found (param='{param}') for {actor.Name.ToStringShort}");
                 return false;
             }
 

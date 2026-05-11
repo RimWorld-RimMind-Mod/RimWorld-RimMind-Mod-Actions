@@ -1,3 +1,4 @@
+using RimMind.Contracts.Result;
 using RimWorld;
 using Verse;
 
@@ -70,7 +71,7 @@ namespace RimMind.Actions.Actions
             var def = DefDatabase<ThoughtDef>.GetNamedSilentFail(param!);
             if (def == null)
             {
-                Log.Warning($"[RimMind-Actions] add_thought: unknown ThoughtDef '{param}'");
+                RimMindErrors.Warn($"[RimMind-Actions] add_thought: unknown ThoughtDef '{param}'");
                 return false;
             }
             if (actor.needs?.mood?.thoughts?.memories == null) return false;
@@ -98,7 +99,7 @@ namespace RimMind.Actions.Actions
             var def = DefDatabase<MentalStateDef>.GetNamedSilentFail(param!);
             if (def == null)
             {
-                Log.Warning($"[RimMind-Actions] trigger_mental_state: unknown MentalStateDef '{param}'");
+                RimMindErrors.Warn($"[RimMind-Actions] trigger_mental_state: unknown MentalStateDef '{param}'");
                 return false;
             }
 

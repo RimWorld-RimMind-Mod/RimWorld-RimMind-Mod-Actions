@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RimMind.Contracts.Result;
 using Verse;
 
 namespace RimMind.Actions
@@ -55,7 +56,7 @@ namespace RimMind.Actions
             {
                 if (!registered.Contains(id))
                 {
-                    Log.Warning(
+                    RimMindErrors.Warn(
                         $"[RimMind-Actions] Settings contain unregistered intent '{id}', " +
                         $"the corresponding mod may not be loaded or has been removed. Entry preserved - will auto-activate when the mod is re-enabled.");
                 }
