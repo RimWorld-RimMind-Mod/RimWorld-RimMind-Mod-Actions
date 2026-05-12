@@ -1,47 +1,25 @@
+using System;
 using System.Collections.Generic;
-using RimMind.Contracts.Client;
 using RimMind.Contracts.Extensions;
-using Verse;
 
 namespace RimMind.Actions
 {
+    [Obsolete("ActionsBridge is deprecated. Use RimMindAPI.Tools instead.")]
     public class ActionsBridge : IAgentActionBridge
     {
-        public void ExecuteAction(string npcId, string actionName, string[]? args = null)
-        {
-            var pawn = FindById(npcId);
-            if (pawn != null)
-                RimMindActionsAPI.Execute(actionName, pawn, null, args != null ? string.Join(" ", args) : null);
-        }
+        [Obsolete]
+        public void ExecuteAction(string npcId, string actionName, string[]? args = null) { }
 
-        public bool CanExecute(string npcId, string actionName)
-        {
-            return RimMindActionsAPI.IsAllowed(actionName);
-        }
+        [Obsolete]
+        public bool CanExecute(string npcId, string actionName) => false;
 
-        public bool CanExecute(object pawn, string action)
-        {
-            return RimMindActionsAPI.IsAllowed(action);
-        }
+        [Obsolete]
+        public bool CanExecute(object pawn, string action) => false;
 
-        public void Execute(object pawn, string action, string? targetName = null)
-        {
-            if (pawn is Pawn p)
-                RimMindActionsAPI.Execute(action, p, null, targetName);
-        }
+        [Obsolete]
+        public void Execute(object pawn, string action, string? targetName = null) { }
 
-        public List<StructuredTool>? GetAvailableTools(object pawn)
-        {
-            return RimMindActionsAPI.GetStructuredTools();
-        }
-
-        private static Pawn? FindById(string npcId)
-        {
-            if (string.IsNullOrEmpty(npcId)) return null;
-            foreach (var map in Find.Maps)
-                foreach (var p in map.mapPawns.AllPawns)
-                    if ($"NPC-{p.thingIDNumber}" == npcId) return p;
-            return null;
-        }
+        [Obsolete]
+        public List<StructuredTool>? GetAvailableTools(object pawn) => null;
     }
 }

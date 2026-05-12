@@ -10,15 +10,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="../../RimMind-Core/Source/Contracts/Result/Result.cs" />
+    <Compile Include="../../RimMind-Core/Source/Contracts/Result/RimMindError.cs" />
+    <Compile Include="../../RimMind-Core/Source/Contracts/Result/RimMindErrorCode.cs" />
+    <Compile Include="../../RimMind-Core/Source/Contracts/Abstractions/*.cs" />
+    <Compile Include="../../RimMind-Core/Source/Contracts/Mechanisms/MechanismRisk.cs" />
+    <Compile Include="../../RimMind-Core/Source/Core/Agent/RiskLevel.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="xunit" Version="2.9.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Compile Include="../Source/Actions/ActionResult.cs" />
-    <Compile Include="../Source/Actions/RiskLevel.cs" />
-  </ItemGroup>
+
 
 </Project>
