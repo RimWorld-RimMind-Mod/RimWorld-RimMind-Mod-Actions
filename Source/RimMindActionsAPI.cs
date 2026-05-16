@@ -75,5 +75,19 @@ namespace RimMind.Actions
 
         [Obsolete("Use RimMindAPI.Tools instead.")]
         public static object? GetRiskLevel(string intentId) => null;
+
+        [Obsolete("Use RimMindAPI.Tools instead.")]
+        public static List<WorkTargetInfo> GetWorkTargets(Pawn pawn, string workTypeDefName, int maxCount)
+            => new List<WorkTargetInfo>();
+
+        [Obsolete("Use RimMindAPI.Tools instead.")]
+        public static string? GetActionHintData(Pawn pawn, string intentId) => null;
+    }
+
+    [Obsolete("Use RimMindAPI.Tools instead. This type is deprecated and will be removed in a future version.")]
+    public class WorkTargetInfo
+    {
+        public float Distance { get; set; }
+        public string Label { get; set; } = "";
     }
 }

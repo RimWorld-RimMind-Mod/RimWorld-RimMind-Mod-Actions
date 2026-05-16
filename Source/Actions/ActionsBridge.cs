@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
-using RimMind.Contracts.Extensions;
+using RimMind.Application.Common.Interfaces.Extension;
+using RimMind.Application.Common.Models.Client;
 
 namespace RimMind.Actions
 {

@@ -1,6 +1,6 @@
 using System;
 using HarmonyLib;
-using RimMind.Contracts.Extensions;
+using RimMind.Application.Common.Interfaces.Extension;
 using UnityEngine;
 using Verse;
 
