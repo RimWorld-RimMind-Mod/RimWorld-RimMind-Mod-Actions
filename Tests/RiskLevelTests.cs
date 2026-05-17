@@ -1,4 +1,4 @@
-using RimMind.Core.Agent;
+using RimMind.Domain.Enums;
 using Xunit;
 
 namespace RimMind.Actions.Tests

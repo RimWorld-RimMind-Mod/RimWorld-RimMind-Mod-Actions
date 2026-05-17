@@ -1,4 +1,4 @@
-using RimMind.Contracts.Result;
+using RimMind.Domain.ValueObjects;
 using Xunit;
 
 namespace RimMind.Actions.Tests

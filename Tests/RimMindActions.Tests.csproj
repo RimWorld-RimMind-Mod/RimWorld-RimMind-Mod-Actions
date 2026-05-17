@@ -10,12 +10,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="../../RimMind-Core/Source/Contracts/Result/Result.cs" />
-    <Compile Include="../../RimMind-Core/Source/Contracts/Result/RimMindError.cs" />
-    <Compile Include="../../RimMind-Core/Source/Contracts/Result/RimMindErrorCode.cs" />
-    <Compile Include="../../RimMind-Core/Source/Contracts/Abstractions/*.cs" />
-    <Compile Include="../../RimMind-Core/Source/Contracts/Mechanisms/MechanismRisk.cs" />
-    <Compile Include="../../RimMind-Core/Source/Core/Agent/RiskLevel.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/Result.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindError.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindErrorCode.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Enums/MechanismRisk.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Enums/RiskLevel.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,7 +23,5 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
-
-
 
 </Project>
