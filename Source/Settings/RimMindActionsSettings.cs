@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using RimMind.Domain.ValueObjects;
 using Verse;
 
 namespace RimMind.Actions
@@ -13,6 +14,9 @@ namespace RimMind.Actions
         /// 存储字符串，对应 mod 未加载时保留该条目，不报错。
         /// </summary>
         public HashSet<string> DisabledIntents = new HashSet<string>();
+        public bool enableActions = true;
+        public int delayedQueueMaxSize = 50;
+        public float delayedQueueDefaultDelay = 1.5f;
 
         /// <summary>
         /// 检查指定意图是否被玩家允许执行。
@@ -28,6 +32,9 @@ namespace RimMind.Actions
             DisabledIntents = list != null
                 ? new HashSet<string>(list)
                 : new HashSet<string>();
+            Scribe_Values.Look(ref enableActions, "enableActions", true);
+            Scribe_Values.Look(ref delayedQueueMaxSize, "delayedQueueMaxSize", 50);
+            Scribe_Values.Look(ref delayedQueueDefaultDelay, "delayedQueueDefaultDelay", 1.5f);
         }
     }
 
@@ -49,7 +56,7 @@ namespace RimMind.Actions
             {
                 if (!registered.Contains(id))
                 {
-                    Log.Warning(
+                    RimMindErrors.Warn(
                         $"[RimMind-Actions] Settings contain unregistered intent '{id}', " +
                         $"the corresponding mod may not be loaded or has been removed. Entry preserved - will auto-activate when the mod is re-enabled.");
                 }

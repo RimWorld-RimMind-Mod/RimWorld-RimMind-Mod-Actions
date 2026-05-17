@@ -1,28 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ModMetaData>
-    <name>RimMind - Actions</name>
-    <author>mcocdaa</author>
-    <packageId>mcocdaa.RimMindActions</packageId>
-    <modVersion>0.0.1</modVersion>
-    <supportedVersions>
-        <li>1.6</li>
-    </supportedVersions>
-    <description>Intent-to-action execution library. Maps AI intent IDs (assign_work, force_rest, recruit_agree, etc.) to concrete RimWorld game operations.</description>
-    <modDependencies>
-        <li>
-            <packageId>brrainz.harmony</packageId>
-            <displayName>Harmony</displayName>
-            <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
-            <downloadUrl>https://github.com/pardeike/Harmony/releases</downloadUrl>
-        </li>
-        <li>
-            <packageId>mcocdaa.RimMindCore</packageId>
-            <displayName>RimMind - Core</displayName>
-            <downloadUrl>https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core</downloadUrl>
-        </li>
-    </modDependencies>
-    <loadAfter>
-        <li>brrainz.harmony</li>
-        <li>mcocdaa.RimMindCore</li>
-    </loadAfter>
+  <name>RimMind - Actions</name>
+  <author>mcocdaa</author>
+  <packageId>mcocdaa.RimMindActions</packageId>
+  <modVersion>2.0.0</modVersion>
+  <supportedVersions>
+    <li>1.6</li>
+  </supportedVersions>
+  <description>Intent-to-action execution library. Maps AI intent IDs (assign_work, force_rest, recruit_agree, etc.) to concrete RimWorld game operations. [v2.0 BREAKING CHANGES]</description>
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+      <downloadUrl>https://github.com/pardeike/Harmony/releases</downloadUrl>
+    </li>
+    <li>
+      <packageId>mcocdaa.RimMindCore</packageId>
+      <displayName>RimMind - Core</displayName>
+      <downloadUrl>https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core</downloadUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+    <li>mcocdaa.RimMindCore</li>
+  </loadAfter>
 </ModMetaData>

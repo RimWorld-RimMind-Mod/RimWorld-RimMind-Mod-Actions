@@ -1,87 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-    <!-- EventActions.cs -->
-    <RimMind.Actions.DisplayName.TriggerIncident>Trigger Incident</RimMind.Actions.DisplayName.TriggerIncident>
-
-    <!-- MoodActions.cs -->
-    <RimMind.Actions.DisplayName.InspireWork>Inspire Work</RimMind.Actions.DisplayName.InspireWork>
-    <RimMind.Actions.DisplayName.InspireFight>Inspire Fight</RimMind.Actions.DisplayName.InspireFight>
-    <RimMind.Actions.DisplayName.InspireTrade>Inspire Trade</RimMind.Actions.DisplayName.InspireTrade>
-    <RimMind.Actions.DisplayName.AddThought>Add Thought</RimMind.Actions.DisplayName.AddThought>
-    <RimMind.Actions.DisplayName.TriggerMentalState>Trigger Mental Break</RimMind.Actions.DisplayName.TriggerMentalState>
-
-    <!-- PawnActions.cs -->
-    <RimMind.Actions.DisplayName.ForceRest>Force Rest</RimMind.Actions.DisplayName.ForceRest>
-    <RimMind.Actions.DisplayName.AssignWork>Assign Work</RimMind.Actions.DisplayName.AssignWork>
-    <RimMind.Actions.DisplayName.MoveTo>Move To</RimMind.Actions.DisplayName.MoveTo>
-    <RimMind.Actions.DisplayName.Draft>Draft</RimMind.Actions.DisplayName.Draft>
-    <RimMind.Actions.DisplayName.Undraft>Undraft</RimMind.Actions.DisplayName.Undraft>
-    <RimMind.Actions.DisplayName.TendPawn>Tend Pawn</RimMind.Actions.DisplayName.TendPawn>
-    <RimMind.Actions.DisplayName.RescuePawn>Rescue Pawn</RimMind.Actions.DisplayName.RescuePawn>
-    <RimMind.Actions.DisplayName.ArrestPawn>Arrest Pawn</RimMind.Actions.DisplayName.ArrestPawn>
-    <RimMind.Actions.DisplayName.CancelJob>Cancel Job</RimMind.Actions.DisplayName.CancelJob>
-    <RimMind.Actions.DisplayName.SetWorkPriority>Set Work Priority</RimMind.Actions.DisplayName.SetWorkPriority>
-    <RimMind.Actions.DisplayName.DropWeapon>Drop Weapon</RimMind.Actions.DisplayName.DropWeapon>
-    <RimMind.Actions.DisplayName.EatFood>Eat Food</RimMind.Actions.DisplayName.EatFood>
-
-    <!-- RelationActions.cs -->
-    <RimMind.Actions.DisplayName.RecruitAgree>Recruit Agree</RimMind.Actions.DisplayName.RecruitAgree>
-    <RimMind.Actions.DisplayName.AdjustFaction>Adjust Faction</RimMind.Actions.DisplayName.AdjustFaction>
-
-    <!-- SocialActions.cs -->
-    <RimMind.Actions.DisplayName.SocialDining>Social Dining</RimMind.Actions.DisplayName.SocialDining>
-    <RimMind.Actions.DisplayName.SocialRelax>Social Relax</RimMind.Actions.DisplayName.SocialRelax>
-    <RimMind.Actions.DisplayName.GiveItem>Give Item</RimMind.Actions.DisplayName.GiveItem>
-    <RimMind.Actions.DisplayName.RomanceAccept>Romance Accept</RimMind.Actions.DisplayName.RomanceAccept>
-    <RimMind.Actions.DisplayName.RomanceBreakup>Romance Breakup</RimMind.Actions.DisplayName.RomanceBreakup>
-
-    <!-- RimMindActionsMod.cs -->
-    <RimMind.Actions.Settings.AllowedActionsLabel>Allowed AI Actions</RimMind.Actions.Settings.AllowedActionsLabel>
-    <RimMind.Actions.Settings.AllowedActionsDesc>Disabling an action prevents the AI advisor from choosing it for colonists. Higher risk levels mean greater impact on the colony.</RimMind.Actions.Settings.AllowedActionsDesc>
-    <RimMind.Actions.Settings.ResetToDefault>Reset to Default (Allow All)</RimMind.Actions.Settings.ResetToDefault>
-
-    <!-- RimMindActionsMod.cs - Risk tooltips -->
-    <RimMind.Actions.UI.Risk.Low>Low Risk — routine actions, safe</RimMind.Actions.UI.Risk.Low>
-    <RimMind.Actions.UI.Risk.Medium>Medium Risk — survival, social, or work actions with minor side effects</RimMind.Actions.UI.Risk.Medium>
-    <RimMind.Actions.UI.Risk.High>High Risk — may affect faction relations or pawn status, enable with caution</RimMind.Actions.UI.Risk.High>
-    <RimMind.Actions.UI.Risk.Critical>Critical Risk — can trigger events/mental breaks, not recommended for AI</RimMind.Actions.UI.Risk.Critical>
-
-    <!-- PawnActions.cs - Prompt context -->
-    <RimMind.Actions.Prompt.WorkTargetInfo>{0}({1}) at({2},{3}) dist{4}</RimMind.Actions.Prompt.WorkTargetInfo>
-    <RimMind.Actions.Prompt.Harvestable>{0}(harvestable) [{1}]</RimMind.Actions.Prompt.Harvestable>
-    <RimMind.Actions.Prompt.WaitSow>{0}(sow {1} cells) [{2}]</RimMind.Actions.Prompt.WaitSow>
-    <RimMind.Actions.Prompt.Deconstruct>{0}(deconstruct)</RimMind.Actions.Prompt.Deconstruct>
-    <RimMind.Actions.Prompt.Uninstall>{0}(uninstall)</RimMind.Actions.Prompt.Uninstall>
-
-    <!-- Action Descriptions for AI Prompt -->
-    <RimMind.Actions.Desc.force_rest>Go to bed and rest to recover energy</RimMind.Actions.Desc.force_rest>
-    <RimMind.Actions.Desc.assign_work>Assign to a specific work station</RimMind.Actions.Desc.assign_work>
-    <RimMind.Actions.Desc.move_to>Move to specified coordinates</RimMind.Actions.Desc.move_to>
-    <RimMind.Actions.Desc.eat_food>Find and eat food</RimMind.Actions.Desc.eat_food>
-    <RimMind.Actions.Desc.draft>Enter drafted combat mode</RimMind.Actions.Desc.draft>
-    <RimMind.Actions.Desc.undraft>Exit draft and resume daily routine</RimMind.Actions.Desc.undraft>
-    <RimMind.Actions.Desc.tend_pawn>Treat target's wounds</RimMind.Actions.Desc.tend_pawn>
-    <RimMind.Actions.Desc.rescue_pawn>Carry downed target to bed</RimMind.Actions.Desc.rescue_pawn>
-    <RimMind.Actions.Desc.arrest_pawn>Arrest and imprison target</RimMind.Actions.Desc.arrest_pawn>
-    <RimMind.Actions.Desc.cancel_job>Cancel current job</RimMind.Actions.Desc.cancel_job>
-    <RimMind.Actions.Desc.set_work_priority>Adjust priority of a work type</RimMind.Actions.Desc.set_work_priority>
-    <RimMind.Actions.Desc.drop_weapon>Drop held weapon</RimMind.Actions.Desc.drop_weapon>
-    <RimMind.Actions.Desc.social_dining>Share a meal with companion to bond</RimMind.Actions.Desc.social_dining>
-    <RimMind.Actions.Desc.social_relax>Social relaxation to relieve stress</RimMind.Actions.Desc.social_relax>
-    <RimMind.Actions.Desc.give_item>Give an item from inventory to target</RimMind.Actions.Desc.give_item>
-    <RimMind.Actions.Desc.romance_accept>Initiate romance with target</RimMind.Actions.Desc.romance_accept>
-    <RimMind.Actions.Desc.romance_breakup>Break up with target</RimMind.Actions.Desc.romance_breakup>
-    <RimMind.Actions.Desc.recruit_agree>Agree to join the colony</RimMind.Actions.Desc.recruit_agree>
-    <RimMind.Actions.Desc.adjust_faction>Adjust relations with a faction</RimMind.Actions.Desc.adjust_faction>
-    <RimMind.Actions.Desc.inspire_work>Gain work frenzy inspiration for double speed</RimMind.Actions.Desc.inspire_work>
-    <RimMind.Actions.Desc.inspire_fight>Gain shooting inspiration for better accuracy</RimMind.Actions.Desc.inspire_fight>
-    <RimMind.Actions.Desc.inspire_trade>Gain trade inspiration for better prices</RimMind.Actions.Desc.inspire_trade>
-    <RimMind.Actions.Desc.add_thought>Add a mood thought</RimMind.Actions.Desc.add_thought>
-    <RimMind.Actions.Desc.trigger_mental_state>Trigger a mental break</RimMind.Actions.Desc.trigger_mental_state>
-    <RimMind.Actions.Desc.trigger_incident>Trigger a random incident</RimMind.Actions.Desc.trigger_incident>
-
-    <!-- DelayedActionQueue.cs - Debug -->
-    <RimMind.Actions.Debug.QueueEmpty>(queue empty)</RimMind.Actions.Debug.QueueEmpty>
-    <RimMind.Actions.Debug.QueueEntry>  [{0}] {1} | actor:{2}{3}{4} remaining:{5:F1}s{6}</RimMind.Actions.Debug.QueueEntry>
-    <RimMind.Actions.Debug.Cancelled> [cancelled]</RimMind.Actions.Debug.Cancelled>
+  <!-- EventActions.cs -->
+  <RimMind.Actions.DisplayName.TriggerIncident>Trigger Incident</RimMind.Actions.DisplayName.TriggerIncident>
+  <!-- MoodActions.cs -->
+  <RimMind.Actions.DisplayName.InspireWork>Inspire Work</RimMind.Actions.DisplayName.InspireWork>
+  <RimMind.Actions.DisplayName.InspireShoot>Inspire Shoot</RimMind.Actions.DisplayName.InspireShoot>
+  <RimMind.Actions.DisplayName.InspireTrade>Inspire Trade</RimMind.Actions.DisplayName.InspireTrade>
+  <RimMind.Actions.DisplayName.AddThought>Add Thought</RimMind.Actions.DisplayName.AddThought>
+  <RimMind.Actions.DisplayName.TriggerMentalState>Trigger Mental Break</RimMind.Actions.DisplayName.TriggerMentalState>
+  <!-- PawnActions.cs -->
+  <RimMind.Actions.DisplayName.ForceRest>Force Rest</RimMind.Actions.DisplayName.ForceRest>
+  <RimMind.Actions.DisplayName.AssignWork>Assign Work</RimMind.Actions.DisplayName.AssignWork>
+  <RimMind.Actions.DisplayName.MoveTo>Move To</RimMind.Actions.DisplayName.MoveTo>
+  <RimMind.Actions.DisplayName.Draft>Draft</RimMind.Actions.DisplayName.Draft>
+  <RimMind.Actions.DisplayName.Undraft>Undraft</RimMind.Actions.DisplayName.Undraft>
+  <RimMind.Actions.DisplayName.TendPawn>Tend Pawn</RimMind.Actions.DisplayName.TendPawn>
+  <RimMind.Actions.DisplayName.RescuePawn>Rescue Pawn</RimMind.Actions.DisplayName.RescuePawn>
+  <RimMind.Actions.DisplayName.ArrestPawn>Arrest Pawn</RimMind.Actions.DisplayName.ArrestPawn>
+  <RimMind.Actions.DisplayName.CancelJob>Cancel Job</RimMind.Actions.DisplayName.CancelJob>
+  <RimMind.Actions.DisplayName.SetWorkPriority>Set Work Priority</RimMind.Actions.DisplayName.SetWorkPriority>
+  <RimMind.Actions.DisplayName.DropWeapon>Drop Weapon</RimMind.Actions.DisplayName.DropWeapon>
+  <RimMind.Actions.DisplayName.EatFood>Eat Food</RimMind.Actions.DisplayName.EatFood>
+  <!-- RelationActions.cs -->
+  <RimMind.Actions.DisplayName.RecruitAgree>Recruit Agree</RimMind.Actions.DisplayName.RecruitAgree>
+  <RimMind.Actions.DisplayName.AdjustFaction>Adjust Faction</RimMind.Actions.DisplayName.AdjustFaction>
+  <!-- SocialActions.cs -->
+  <RimMind.Actions.DisplayName.SocialRelax>Social Relax</RimMind.Actions.DisplayName.SocialRelax>
+  <RimMind.Actions.DisplayName.GiveItem>Give Item</RimMind.Actions.DisplayName.GiveItem>
+  <RimMind.Actions.DisplayName.RomanceAttempt>Romance Attempt</RimMind.Actions.DisplayName.RomanceAttempt>
+  <RimMind.Actions.DisplayName.RomanceBreakup>Romance Breakup</RimMind.Actions.DisplayName.RomanceBreakup>
+  <!-- RimMindActionsMod.cs -->
+  <RimMind.Actions.Settings.AllowedActionsLabel>Allowed AI Actions</RimMind.Actions.Settings.AllowedActionsLabel>
+  <RimMind.Actions.Settings.AllowedActionsDesc>Disabling an action prevents the AI advisor from choosing it for colonists. Higher risk levels mean greater impact on the colony.</RimMind.Actions.Settings.AllowedActionsDesc>
+  <RimMind.Actions.Settings.ResetToDefault>Reset to Default (Allow All)</RimMind.Actions.Settings.ResetToDefault>
+  <RimMind.Actions.Settings.Category>RimMind - Actions</RimMind.Actions.Settings.Category>
+  <RimMind.Actions.Settings.EnableActions>Enable Actions</RimMind.Actions.Settings.EnableActions>
+  <RimMind.Actions.Settings.EnableActions.Desc>Master switch for all AI actions. When disabled, no actions will be executed.</RimMind.Actions.Settings.EnableActions.Desc>
+  <RimMind.Actions.Settings.DisableHighRisk>Disable All High Risk</RimMind.Actions.Settings.DisableHighRisk>
+  <RimMind.Actions.Settings.DisableCritical>Disable All Critical Risk</RimMind.Actions.Settings.DisableCritical>
+  <RimMind.Actions.Settings.QueueSection>Delayed Action Queue</RimMind.Actions.Settings.QueueSection>
+  <RimMind.Actions.Settings.QueueMaxSize>Max Queue Size</RimMind.Actions.Settings.QueueMaxSize>
+  <RimMind.Actions.Settings.DefaultDelay>Default Delay (seconds)</RimMind.Actions.Settings.DefaultDelay>
+  <!-- RimMindActionsMod.cs - Risk tooltips -->
+  <RimMind.Actions.UI.Risk.Low>Low Risk — routine actions, safe</RimMind.Actions.UI.Risk.Low>
+  <RimMind.Actions.UI.Risk.Medium>Medium Risk — survival, social, or work actions with minor side effects</RimMind.Actions.UI.Risk.Medium>
+  <RimMind.Actions.UI.Risk.High>High Risk — may affect faction relations or pawn status, enable with caution</RimMind.Actions.UI.Risk.High>
+  <RimMind.Actions.UI.Risk.Critical>Critical Risk — can trigger events/mental breaks, not recommended for AI</RimMind.Actions.UI.Risk.Critical>
+  <!-- PawnActions.cs - Prompt context -->
+  <RimMind.Actions.Prompt.WorkTargetInfo>{0}({1}) at({2},{3}) dist{4}</RimMind.Actions.Prompt.WorkTargetInfo>
+  <RimMind.Actions.Prompt.Harvestable>{0}(harvestable) [{1}]</RimMind.Actions.Prompt.Harvestable>
+  <RimMind.Actions.Prompt.WaitSow>{0}(sow {1} cells) [{2}]</RimMind.Actions.Prompt.WaitSow>
+  <RimMind.Actions.Prompt.Deconstruct>{0}(deconstruct)</RimMind.Actions.Prompt.Deconstruct>
+  <RimMind.Actions.Prompt.Uninstall>{0}(uninstall)</RimMind.Actions.Prompt.Uninstall>
+  <!-- Action Descriptions for AI Prompt -->
+  <RimMind.Actions.Desc.force_rest>Go to bed and rest to recover energy</RimMind.Actions.Desc.force_rest>
+  <RimMind.Actions.Desc.assign_work>Assign to a specific work station</RimMind.Actions.Desc.assign_work>
+  <RimMind.Actions.Desc.move_to>Move to specified coordinates</RimMind.Actions.Desc.move_to>
+  <RimMind.Actions.Desc.eat_food>Find and eat food</RimMind.Actions.Desc.eat_food>
+  <RimMind.Actions.Desc.draft>Enter drafted combat mode</RimMind.Actions.Desc.draft>
+  <RimMind.Actions.Desc.undraft>Exit draft and resume daily routine</RimMind.Actions.Desc.undraft>
+  <RimMind.Actions.Desc.tend_pawn>Treat target's wounds</RimMind.Actions.Desc.tend_pawn>
+  <RimMind.Actions.Desc.rescue_pawn>Carry downed target to bed</RimMind.Actions.Desc.rescue_pawn>
+  <RimMind.Actions.Desc.arrest_pawn>Arrest and imprison target</RimMind.Actions.Desc.arrest_pawn>
+  <RimMind.Actions.Desc.cancel_job>Cancel current job</RimMind.Actions.Desc.cancel_job>
+  <RimMind.Actions.Desc.set_work_priority>Adjust priority of a work type</RimMind.Actions.Desc.set_work_priority>
+  <RimMind.Actions.Desc.drop_weapon>Drop held weapon</RimMind.Actions.Desc.drop_weapon>
+  <RimMind.Actions.Desc.social_relax>Social relaxation to relieve stress</RimMind.Actions.Desc.social_relax>
+  <RimMind.Actions.Desc.give_item>Give an item from inventory to target</RimMind.Actions.Desc.give_item>
+  <RimMind.Actions.Desc.romance_attempt>Initiate romance attempt with target</RimMind.Actions.Desc.romance_attempt>
+  <RimMind.Actions.Desc.romance_breakup>Break up with target</RimMind.Actions.Desc.romance_breakup>
+  <RimMind.Actions.Desc.recruit_agree>Agree to join the colony</RimMind.Actions.Desc.recruit_agree>
+  <RimMind.Actions.Desc.adjust_faction>Adjust relations with a faction</RimMind.Actions.Desc.adjust_faction>
+  <RimMind.Actions.Desc.inspire_work>Gain work frenzy inspiration for double speed</RimMind.Actions.Desc.inspire_work>
+  <RimMind.Actions.Desc.inspire_shoot>Gain shooting frenzy inspiration for better accuracy</RimMind.Actions.Desc.inspire_shoot>
+  <RimMind.Actions.Desc.inspire_trade>Gain trade inspiration for better prices</RimMind.Actions.Desc.inspire_trade>
+  <RimMind.Actions.Desc.add_thought>Add a mood thought</RimMind.Actions.Desc.add_thought>
+  <RimMind.Actions.Desc.trigger_mental_state>Trigger a mental break</RimMind.Actions.Desc.trigger_mental_state>
+  <RimMind.Actions.Desc.trigger_incident>Trigger a random incident</RimMind.Actions.Desc.trigger_incident>
 </LanguageData>

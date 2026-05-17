@@ -1,87 +1,80 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
-    <!-- EventActions.cs -->
-    <RimMind.Actions.DisplayName.TriggerIncident>触发事件</RimMind.Actions.DisplayName.TriggerIncident>
-
-    <!-- MoodActions.cs -->
-    <RimMind.Actions.DisplayName.InspireWork>触发工作灵感</RimMind.Actions.DisplayName.InspireWork>
-    <RimMind.Actions.DisplayName.InspireFight>触发战斗灵感</RimMind.Actions.DisplayName.InspireFight>
-    <RimMind.Actions.DisplayName.InspireTrade>触发交易灵感</RimMind.Actions.DisplayName.InspireTrade>
-    <RimMind.Actions.DisplayName.AddThought>添加 Thought</RimMind.Actions.DisplayName.AddThought>
-    <RimMind.Actions.DisplayName.TriggerMentalState>触发精神崩溃</RimMind.Actions.DisplayName.TriggerMentalState>
-
-    <!-- PawnActions.cs -->
-    <RimMind.Actions.DisplayName.ForceRest>强制休息</RimMind.Actions.DisplayName.ForceRest>
-    <RimMind.Actions.DisplayName.AssignWork>指定工作</RimMind.Actions.DisplayName.AssignWork>
-    <RimMind.Actions.DisplayName.MoveTo>移动到位置</RimMind.Actions.DisplayName.MoveTo>
-    <RimMind.Actions.DisplayName.Draft>征召</RimMind.Actions.DisplayName.Draft>
-    <RimMind.Actions.DisplayName.Undraft>解除征召</RimMind.Actions.DisplayName.Undraft>
-    <RimMind.Actions.DisplayName.TendPawn>救治目标</RimMind.Actions.DisplayName.TendPawn>
-    <RimMind.Actions.DisplayName.RescuePawn>救援倒地目标</RimMind.Actions.DisplayName.RescuePawn>
-    <RimMind.Actions.DisplayName.ArrestPawn>逮捕目标</RimMind.Actions.DisplayName.ArrestPawn>
-    <RimMind.Actions.DisplayName.CancelJob>中止当前任务</RimMind.Actions.DisplayName.CancelJob>
-    <RimMind.Actions.DisplayName.SetWorkPriority>调整工作优先级</RimMind.Actions.DisplayName.SetWorkPriority>
-    <RimMind.Actions.DisplayName.DropWeapon>丢弃武器</RimMind.Actions.DisplayName.DropWeapon>
-    <RimMind.Actions.DisplayName.EatFood>吃指定食物</RimMind.Actions.DisplayName.EatFood>
-
-    <!-- RelationActions.cs -->
-    <RimMind.Actions.DisplayName.RecruitAgree>同意招募</RimMind.Actions.DisplayName.RecruitAgree>
-    <RimMind.Actions.DisplayName.AdjustFaction>修改派系关系</RimMind.Actions.DisplayName.AdjustFaction>
-
-    <!-- SocialActions.cs -->
-    <RimMind.Actions.DisplayName.SocialDining>社交聚餐</RimMind.Actions.DisplayName.SocialDining>
-    <RimMind.Actions.DisplayName.SocialRelax>社交休闲</RimMind.Actions.DisplayName.SocialRelax>
-    <RimMind.Actions.DisplayName.GiveItem>赠送物品</RimMind.Actions.DisplayName.GiveItem>
-    <RimMind.Actions.DisplayName.RomanceAccept>发起恋爱</RimMind.Actions.DisplayName.RomanceAccept>
-    <RimMind.Actions.DisplayName.RomanceBreakup>分手</RimMind.Actions.DisplayName.RomanceBreakup>
-
-    <!-- RimMindActionsMod.cs -->
-    <RimMind.Actions.Settings.AllowedActionsLabel>允许 AI 执行的动作</RimMind.Actions.Settings.AllowedActionsLabel>
-    <RimMind.Actions.Settings.AllowedActionsDesc>关闭某项动作后，AI 顾问将不会为殖民者选择该动作。风险等级越高，动作对殖民地的影响越大。</RimMind.Actions.Settings.AllowedActionsDesc>
-    <RimMind.Actions.Settings.ResetToDefault>重置为默认（全部允许）</RimMind.Actions.Settings.ResetToDefault>
-
-    <!-- RimMindActionsMod.cs - Risk tooltips -->
-    <RimMind.Actions.UI.Risk.Low>低风险 — 日常工作类动作，安全</RimMind.Actions.UI.Risk.Low>
-    <RimMind.Actions.UI.Risk.Medium>中风险 — 生存、社交或工作类动作，有轻微副作用</RimMind.Actions.UI.Risk.Medium>
-    <RimMind.Actions.UI.Risk.High>高风险 — 可能影响派系关系或人物状态，谨慎开启</RimMind.Actions.UI.Risk.High>
-    <RimMind.Actions.UI.Risk.Critical>极高风险 — 可触发事件/精神崩溃，不建议给 AI 使用</RimMind.Actions.UI.Risk.Critical>
-
-    <!-- PawnActions.cs - Prompt context -->
-    <RimMind.Actions.Prompt.WorkTargetInfo>{0}（{1}）位于({2},{3}) 距离{4}格</RimMind.Actions.Prompt.WorkTargetInfo>
-    <RimMind.Actions.Prompt.Harvestable>{0}（可收割） [{1}]</RimMind.Actions.Prompt.Harvestable>
-    <RimMind.Actions.Prompt.WaitSow>{0}（待播种 {1} 格） [{2}]</RimMind.Actions.Prompt.WaitSow>
-    <RimMind.Actions.Prompt.Deconstruct>{0}（拆除）</RimMind.Actions.Prompt.Deconstruct>
-    <RimMind.Actions.Prompt.Uninstall>{0}（卸载）</RimMind.Actions.Prompt.Uninstall>
-
-    <!-- Action Descriptions for AI Prompt -->
-    <RimMind.Actions.Desc.force_rest>去床上休息恢复精力</RimMind.Actions.Desc.force_rest>
-    <RimMind.Actions.Desc.assign_work>分配到指定工作岗位</RimMind.Actions.Desc.assign_work>
-    <RimMind.Actions.Desc.move_to>移动到指定坐标</RimMind.Actions.Desc.move_to>
-    <RimMind.Actions.Desc.eat_food>寻找并食用食物</RimMind.Actions.Desc.eat_food>
-    <RimMind.Actions.Desc.draft>进入征召战斗状态</RimMind.Actions.Desc.draft>
-    <RimMind.Actions.Desc.undraft>退出征召恢复日常</RimMind.Actions.Desc.undraft>
-    <RimMind.Actions.Desc.tend_pawn>治疗目标的伤口</RimMind.Actions.Desc.tend_pawn>
-    <RimMind.Actions.Desc.rescue_pawn>将倒地的目标抬到床上</RimMind.Actions.Desc.rescue_pawn>
-    <RimMind.Actions.Desc.arrest_pawn>逮捕目标并关押</RimMind.Actions.Desc.arrest_pawn>
-    <RimMind.Actions.Desc.cancel_job>中止当前正在执行的任务</RimMind.Actions.Desc.cancel_job>
-    <RimMind.Actions.Desc.set_work_priority>调整某项工作的优先级</RimMind.Actions.Desc.set_work_priority>
-    <RimMind.Actions.Desc.drop_weapon>丢弃手中武器</RimMind.Actions.Desc.drop_weapon>
-    <RimMind.Actions.Desc.social_dining>与同伴共进餐食增进关系</RimMind.Actions.Desc.social_dining>
-    <RimMind.Actions.Desc.social_relax>社交休闲释放压力</RimMind.Actions.Desc.social_relax>
-    <RimMind.Actions.Desc.give_item>将背包中的物品赠予目标</RimMind.Actions.Desc.give_item>
-    <RimMind.Actions.Desc.romance_accept>向目标发起恋爱</RimMind.Actions.Desc.romance_accept>
-    <RimMind.Actions.Desc.romance_breakup>与目标分手</RimMind.Actions.Desc.romance_breakup>
-    <RimMind.Actions.Desc.recruit_agree>同意加入殖民地</RimMind.Actions.Desc.recruit_agree>
-    <RimMind.Actions.Desc.adjust_faction>调整与某派系的关系</RimMind.Actions.Desc.adjust_faction>
-    <RimMind.Actions.Desc.inspire_work>获得工作狂热灵感加倍速度</RimMind.Actions.Desc.inspire_work>
-    <RimMind.Actions.Desc.inspire_fight>获得射击灵感提高命中</RimMind.Actions.Desc.inspire_fight>
-    <RimMind.Actions.Desc.inspire_trade>获得交易灵感获得更好价格</RimMind.Actions.Desc.inspire_trade>
-    <RimMind.Actions.Desc.add_thought>添加一个心情思想</RimMind.Actions.Desc.add_thought>
-    <RimMind.Actions.Desc.trigger_mental_state>触发精神崩溃</RimMind.Actions.Desc.trigger_mental_state>
-    <RimMind.Actions.Desc.trigger_incident>触发一个随机事件</RimMind.Actions.Desc.trigger_incident>
-
-    <!-- DelayedActionQueue.cs - Debug -->
-    <RimMind.Actions.Debug.QueueEmpty>（队列为空）</RimMind.Actions.Debug.QueueEmpty>
-    <RimMind.Actions.Debug.QueueEntry>  [{0}] {1} | 执行者:{2}{3}{4} 剩余:{5:F1}s{6}</RimMind.Actions.Debug.QueueEntry>
-    <RimMind.Actions.Debug.Cancelled> [已取消]</RimMind.Actions.Debug.Cancelled>
+  <!-- EventActions.cs -->
+  <RimMind.Actions.DisplayName.TriggerIncident>触发事件</RimMind.Actions.DisplayName.TriggerIncident>
+  <!-- MoodActions.cs -->
+  <RimMind.Actions.DisplayName.InspireWork>触发工作灵感</RimMind.Actions.DisplayName.InspireWork>
+  <RimMind.Actions.DisplayName.InspireShoot>触发射击灵感</RimMind.Actions.DisplayName.InspireShoot>
+  <RimMind.Actions.DisplayName.InspireTrade>触发交易灵感</RimMind.Actions.DisplayName.InspireTrade>
+  <RimMind.Actions.DisplayName.AddThought>添加 Thought</RimMind.Actions.DisplayName.AddThought>
+  <RimMind.Actions.DisplayName.TriggerMentalState>触发精神崩溃</RimMind.Actions.DisplayName.TriggerMentalState>
+  <!-- PawnActions.cs -->
+  <RimMind.Actions.DisplayName.ForceRest>强制休息</RimMind.Actions.DisplayName.ForceRest>
+  <RimMind.Actions.DisplayName.AssignWork>指定工作</RimMind.Actions.DisplayName.AssignWork>
+  <RimMind.Actions.DisplayName.MoveTo>移动到位置</RimMind.Actions.DisplayName.MoveTo>
+  <RimMind.Actions.DisplayName.Draft>征召</RimMind.Actions.DisplayName.Draft>
+  <RimMind.Actions.DisplayName.Undraft>解除征召</RimMind.Actions.DisplayName.Undraft>
+  <RimMind.Actions.DisplayName.TendPawn>救治目标</RimMind.Actions.DisplayName.TendPawn>
+  <RimMind.Actions.DisplayName.RescuePawn>救援倒地目标</RimMind.Actions.DisplayName.RescuePawn>
+  <RimMind.Actions.DisplayName.ArrestPawn>逮捕目标</RimMind.Actions.DisplayName.ArrestPawn>
+  <RimMind.Actions.DisplayName.CancelJob>中止当前任务</RimMind.Actions.DisplayName.CancelJob>
+  <RimMind.Actions.DisplayName.SetWorkPriority>调整工作优先级</RimMind.Actions.DisplayName.SetWorkPriority>
+  <RimMind.Actions.DisplayName.DropWeapon>丢弃武器</RimMind.Actions.DisplayName.DropWeapon>
+  <RimMind.Actions.DisplayName.EatFood>吃指定食物</RimMind.Actions.DisplayName.EatFood>
+  <!-- RelationActions.cs -->
+  <RimMind.Actions.DisplayName.RecruitAgree>同意招募</RimMind.Actions.DisplayName.RecruitAgree>
+  <RimMind.Actions.DisplayName.AdjustFaction>修改派系关系</RimMind.Actions.DisplayName.AdjustFaction>
+  <!-- SocialActions.cs -->
+  <RimMind.Actions.DisplayName.SocialRelax>社交休闲</RimMind.Actions.DisplayName.SocialRelax>
+  <RimMind.Actions.DisplayName.GiveItem>赠送物品</RimMind.Actions.DisplayName.GiveItem>
+  <RimMind.Actions.DisplayName.RomanceAttempt>求爱</RimMind.Actions.DisplayName.RomanceAttempt>
+  <RimMind.Actions.DisplayName.RomanceBreakup>分手</RimMind.Actions.DisplayName.RomanceBreakup>
+  <!-- RimMindActionsMod.cs -->
+  <RimMind.Actions.Settings.AllowedActionsLabel>允许 AI 执行的动作</RimMind.Actions.Settings.AllowedActionsLabel>
+  <RimMind.Actions.Settings.AllowedActionsDesc>关闭某项动作后，AI 顾问将不会为殖民者选择该动作。风险等级越高，动作对殖民地的影响越大。</RimMind.Actions.Settings.AllowedActionsDesc>
+  <RimMind.Actions.Settings.ResetToDefault>重置为默认（全部允许）</RimMind.Actions.Settings.ResetToDefault>
+  <RimMind.Actions.Settings.Category>RimMind - 动作</RimMind.Actions.Settings.Category>
+  <RimMind.Actions.Settings.EnableActions>启用动作系统</RimMind.Actions.Settings.EnableActions>
+  <RimMind.Actions.Settings.EnableActions.Desc>所有 AI 动作的总开关。关闭后不会执行任何动作。</RimMind.Actions.Settings.EnableActions.Desc>
+  <RimMind.Actions.Settings.DisableHighRisk>禁用所有高风险</RimMind.Actions.Settings.DisableHighRisk>
+  <RimMind.Actions.Settings.DisableCritical>禁用所有极高风险</RimMind.Actions.Settings.DisableCritical>
+  <RimMind.Actions.Settings.QueueSection>延迟动作队列</RimMind.Actions.Settings.QueueSection>
+  <RimMind.Actions.Settings.QueueMaxSize>队列上限</RimMind.Actions.Settings.QueueMaxSize>
+  <RimMind.Actions.Settings.DefaultDelay>默认延迟（秒）</RimMind.Actions.Settings.DefaultDelay>
+  <!-- RimMindActionsMod.cs - Risk tooltips -->
+  <RimMind.Actions.UI.Risk.Low>低风险 — 日常工作类动作，安全</RimMind.Actions.UI.Risk.Low>
+  <RimMind.Actions.UI.Risk.Medium>中风险 — 生存、社交或工作类动作，有轻微副作用</RimMind.Actions.UI.Risk.Medium>
+  <RimMind.Actions.UI.Risk.High>高风险 — 可能影响派系关系或人物状态，谨慎开启</RimMind.Actions.UI.Risk.High>
+  <RimMind.Actions.UI.Risk.Critical>极高风险 — 可触发事件/精神崩溃，不建议给 AI 使用</RimMind.Actions.UI.Risk.Critical>
+  <!-- PawnActions.cs - Prompt context -->
+  <RimMind.Actions.Prompt.WorkTargetInfo>{0}（{1}）位于({2},{3}) 距离{4}格</RimMind.Actions.Prompt.WorkTargetInfo>
+  <RimMind.Actions.Prompt.Harvestable>{0}（可收割） [{1}]</RimMind.Actions.Prompt.Harvestable>
+  <RimMind.Actions.Prompt.WaitSow>{0}（待播种 {1} 格） [{2}]</RimMind.Actions.Prompt.WaitSow>
+  <RimMind.Actions.Prompt.Deconstruct>{0}（拆除）</RimMind.Actions.Prompt.Deconstruct>
+  <RimMind.Actions.Prompt.Uninstall>{0}（卸载）</RimMind.Actions.Prompt.Uninstall>
+  <!-- Action Descriptions for AI Prompt -->
+  <RimMind.Actions.Desc.force_rest>去床上休息恢复精力</RimMind.Actions.Desc.force_rest>
+  <RimMind.Actions.Desc.assign_work>分配到指定工作岗位</RimMind.Actions.Desc.assign_work>
+  <RimMind.Actions.Desc.move_to>移动到指定坐标</RimMind.Actions.Desc.move_to>
+  <RimMind.Actions.Desc.eat_food>寻找并食用食物</RimMind.Actions.Desc.eat_food>
+  <RimMind.Actions.Desc.draft>进入征召战斗状态</RimMind.Actions.Desc.draft>
+  <RimMind.Actions.Desc.undraft>退出征召恢复日常</RimMind.Actions.Desc.undraft>
+  <RimMind.Actions.Desc.tend_pawn>治疗目标的伤口</RimMind.Actions.Desc.tend_pawn>
+  <RimMind.Actions.Desc.rescue_pawn>将倒地的目标抬到床上</RimMind.Actions.Desc.rescue_pawn>
+  <RimMind.Actions.Desc.arrest_pawn>逮捕目标并关押</RimMind.Actions.Desc.arrest_pawn>
+  <RimMind.Actions.Desc.cancel_job>中止当前正在执行的任务</RimMind.Actions.Desc.cancel_job>
+  <RimMind.Actions.Desc.set_work_priority>调整某项工作的优先级</RimMind.Actions.Desc.set_work_priority>
+  <RimMind.Actions.Desc.drop_weapon>丢弃手中武器</RimMind.Actions.Desc.drop_weapon>
+  <RimMind.Actions.Desc.social_relax>社交休闲释放压力</RimMind.Actions.Desc.social_relax>
+  <RimMind.Actions.Desc.give_item>将背包中的物品赠予目标</RimMind.Actions.Desc.give_item>
+  <RimMind.Actions.Desc.romance_attempt>向目标发起求爱</RimMind.Actions.Desc.romance_attempt>
+  <RimMind.Actions.Desc.romance_breakup>与目标分手</RimMind.Actions.Desc.romance_breakup>
+  <RimMind.Actions.Desc.recruit_agree>同意加入殖民地</RimMind.Actions.Desc.recruit_agree>
+  <RimMind.Actions.Desc.adjust_faction>调整与某派系的关系</RimMind.Actions.Desc.adjust_faction>
+  <RimMind.Actions.Desc.inspire_work>获得工作狂热灵感加倍速度</RimMind.Actions.Desc.inspire_work>
+  <RimMind.Actions.Desc.inspire_shoot>获得射击狂热灵感提高命中</RimMind.Actions.Desc.inspire_shoot>
+  <RimMind.Actions.Desc.inspire_trade>获得交易灵感获得更好价格</RimMind.Actions.Desc.inspire_trade>
+  <RimMind.Actions.Desc.add_thought>添加一个心情思想</RimMind.Actions.Desc.add_thought>
+  <RimMind.Actions.Desc.trigger_mental_state>触发精神崩溃</RimMind.Actions.Desc.trigger_mental_state>
+  <RimMind.Actions.Desc.trigger_incident>触发一个随机事件</RimMind.Actions.Desc.trigger_incident>
 </LanguageData>
