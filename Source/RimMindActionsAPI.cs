@@ -14,7 +14,6 @@ namespace RimMind.Actions
         public string? EventId;
     }
 
-    [Obsolete("Use Result<bool, RimMindError> instead. This type is deprecated and will be removed in a future version.")]
     public class ActionResult
     {
         public string ActionName { get; set; } = "";
@@ -23,13 +22,10 @@ namespace RimMind.Actions
         public override string ToString() => Success ? $"OK: {ActionName}" : $"FAIL: {ActionName} ({Reason})";
     }
 
-    [Obsolete("Use RimMindAPI.Tools instead. This API is deprecated and will be removed in a future version.")]
     public static class RimMindActionsAPI
     {
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static void RegisterAction(string intentId, object rule) { }
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static bool Execute(
             string intentId,
             Pawn actor,
@@ -41,7 +37,6 @@ namespace RimMind.Actions
             return false;
         }
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static bool ExecuteWithResult(
             string intentId,
             Pawn actor,
@@ -53,38 +48,28 @@ namespace RimMind.Actions
             return false;
         }
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static int ExecuteBatch(IReadOnlyList<BatchActionIntent> intents) => 0;
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static List<ActionResult> ExecuteBatchWithResults(IReadOnlyList<BatchActionIntent> intents)
             => new List<ActionResult>();
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static IReadOnlyList<string> GetSupportedIntents() => Array.Empty<string>();
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static IReadOnlyList<(string intentId, string displayName, string riskLevel)> GetActionDescriptions()
             => Array.Empty<(string, string, string)>();
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static string GetActionListText(Pawn? pawn = null) => "Actions module is deprecated. Use RimMindAPI.Tools.";
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static bool IsAllowed(string intentId) => false;
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static object? GetRiskLevel(string intentId) => null;
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static List<WorkTargetInfo> GetWorkTargets(Pawn pawn, string workTypeDefName, int maxCount)
             => new List<WorkTargetInfo>();
 
-        [Obsolete("Use RimMindAPI.Tools instead.")]
         public static string? GetActionHintData(Pawn pawn, string intentId) => null;
     }
 
-    [Obsolete("Use RimMindAPI.Tools instead. This type is deprecated and will be removed in a future version.")]
     public class WorkTargetInfo
     {
         public float Distance { get; set; }
