@@ -1,5 +1,9 @@
 # RimMind - Actions
 
+> **⚠️ H2 阶段空壳化通知 (2026-05)**
+> 本模块自 H2 阶段起已空壳化。所有 IActionRule 实现已迁移到 `RimMind-Core/Source/Infrastructure/Mechanisms/`。
+> 原计划的 M 阶段（Actions 项目整体删除）已取消。Actions 模块保留为 `ICompositeToolCall` 编排多个原子 ToolCall 的实现载体。
+
 AI 意图到游戏动作的执行库，将 AI 的决策（如分配工作、强制休息）映射为具体的 RimWorld 游戏操作。
 
 ## RimMind 是什么
@@ -25,6 +29,27 @@ Core ── Actions ── Advisor
   ├── Personality
   └── Storyteller
 ```
+
+## H2 空壳化状态
+
+### 迁移概要
+
+H2 阶段将所有 24 个 IActionRule 实现迁移至 Core 中的 17 个 Mechanism 类。Actions 模块不再包含任何业务逻辑，仅保留以下文件：
+
+| 保留文件 | 说明 |
+|----------|------|
+| `RimMindActionsAPI.cs` | [Obsolete] 转发器，转发到 `RimMindAPI.Tools` |
+| `RimMindActionsMod.cs` | 仅保留 Settings 初始化 |
+| `ActionsBridge.cs` | 空壳，不再订阅任何事件 |
+| `RimMindActionsSettings.cs` | 玩家审批阈值设置 |
+
+### 模块保留原因
+
+原计划在 M 阶段整体删除 Actions 项目。现取消该计划，Actions 模块保留为 `ICompositeToolCall` 编排多个原子 ToolCall 的实现载体。未来复合动作（如"去 A 点拿物品再送到 B 点"）的编排逻辑将在此模块实现。
+
+### 迁移对照
+
+24 个 IActionRule → 17 个 Mechanism 类（位于 `RimMind-Core/Source/Infrastructure/Mechanisms/`），具体对照关系详见 Core 模块文档。
 
 ## 安装步骤
 
@@ -68,6 +93,8 @@ Actions 本身无需额外配置，安装后自动生效。配合 RimMind-Adviso
 在模组设置中可按风险级别禁用特定动作。
 
 ## 核心功能
+
+> **注意**：以下功能描述反映的是 H2 迁移前的状态。实际业务逻辑已迁移至 Core 的 Mechanism 类，Actions 模块仅保留转发和设置功能。
 
 ### 意图到动作的映射
 
@@ -139,6 +166,9 @@ A: 可以。在模组设置中按风险级别查看，勾选禁用不想要的�
 **Q: 可以只让 AI 管日常，不管战斗吗？**
 A: 可以。在设置中禁用 draft、drop_weapon 等战斗相关动作即可。
 
+**Q: H2 空壳化后 Actions 还需要安装吗？**
+A: 需要。Actions 仍保留 Settings 初始化和转发功能，且未来将承载 ICompositeToolCall 编排逻辑。Advisor 等模块仍依赖 Actions 项目。
+
 ## 致谢
 
 本项目开发过程中参考了以下优秀的 RimWorld 模组：
@@ -155,6 +185,10 @@ A: 可以。在设置中禁用 draft、drop_weapon 等战斗相关动作即可�
 ---
 
 # RimMind - Actions (English)
+
+> **⚠️ H2 Hollowing-out Notice (2026-05)**
+> This module has been hollowed out since the H2 phase. All IActionRule implementations have been migrated to `RimMind-Core/Source/Infrastructure/Mechanisms/`.
+> The originally planned M phase (complete deletion of the Actions project) has been cancelled. The Actions module is retained as the implementation carrier for `ICompositeToolCall` to orchestrate multiple atomic ToolCalls.
 
 The action execution library that maps AI intents (like assign_work, force_rest) into concrete RimWorld game operations.
 
@@ -173,6 +207,27 @@ RimMind is an AI-driven RimWorld mod suite that connects to Large Language Model
 | RimMind-Memory | Memory collection & context injection | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory) |
 | RimMind-Personality | AI-generated personality & thoughts | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality) |
 | RimMind-Storyteller | AI storyteller, smart event selection | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Storyteller) |
+
+## H2 Hollowing-out Status
+
+### Migration Summary
+
+All 24 IActionRule implementations have been migrated to 17 Mechanism classes in Core. The Actions module no longer contains any business logic, retaining only the following files:
+
+| Retained File | Description |
+|---------------|-------------|
+| `RimMindActionsAPI.cs` | [Obsolete] Forwarder, delegates to `RimMindAPI.Tools` |
+| `RimMindActionsMod.cs` | Settings initialization only |
+| `ActionsBridge.cs` | Hollow shell, no longer subscribes to any events |
+| `RimMindActionsSettings.cs` | Player approval threshold settings |
+
+### Reason for Retention
+
+The originally planned M phase (complete deletion of the Actions project) has been cancelled. The Actions module is retained as the implementation carrier for `ICompositeToolCall` to orchestrate multiple atomic ToolCalls. Future composite action orchestration logic (e.g., "go to point A to pick up item, then deliver to point B") will be implemented in this module.
+
+### Migration Mapping
+
+24 IActionRule → 17 Mechanism classes (located in `RimMind-Core/Source/Infrastructure/Mechanisms/`). See Core module documentation for detailed mapping.
 
 ## Installation
 
@@ -217,6 +272,8 @@ You can disable specific actions by risk level in mod settings.
 
 ## Key Features
 
+> **Note**: The feature descriptions below reflect the pre-H2 migration state. Actual business logic has been migrated to Core's Mechanism classes. The Actions module only retains forwarding and settings functionality.
+
 - **Intent-to-Action Mapping**: AI intent IDs automatically convert to RimWorld operations. 24 built-in actions cover work, social, combat, mood, and more.
 - **Precise Work Assignment**: AI can specify exact map coordinates for work targets, e.g., "mine granite at (45,32)" instead of accepting default choices.
 - **Risk Level System**: Each action is tagged with risk level (Low/Medium/High/Critical). Players can disable specific actions in settings.
@@ -236,6 +293,9 @@ A: Yes. In mod settings, view actions by risk level and check to disable unwante
 
 **Q: Can I let AI handle daily tasks but not combat?**
 A: Yes. Disable combat-related actions like draft and drop_weapon in settings.
+
+**Q: Do I still need to install Actions after H2 hollowing-out?**
+A: Yes. Actions still retains Settings initialization and forwarding functionality, and will carry ICompositeToolCall orchestration logic in the future. Modules like Advisor still depend on the Actions project.
 
 ## Acknowledgments
 
