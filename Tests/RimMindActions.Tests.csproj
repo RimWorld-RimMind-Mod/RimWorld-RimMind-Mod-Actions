@@ -5,17 +5,32 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>RimMind.Actions.Tests</RootNamespace>
     <AssemblyName>RimMindActions.Tests</AssemblyName>
-    <LangVersion>9.0</LangVersion>
+    <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <!-- Core 域类型 -->
   <ItemGroup>
     <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/Result.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindError.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindErrorCode.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindErrors.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/TraceContext.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Enums/MechanismRisk.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Enums/RiskLevel.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Llm/StructuredTool.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Extension/IExtension.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Extension/IAgentActionBridge.cs" />
   </ItemGroup>
+
+  <!-- Actions 源码（不含 RimMindActionsMod.cs，该文件由桩替代） -->
+  <ItemGroup>
+    <Compile Include="../Source/Actions/ActionsBridge.cs" />
+    <Compile Include="../Source/RimMindActionsAPI.cs" />
+    <Compile Include="../Source/Settings/RimMindActionsSettings.cs" />
+  </ItemGroup>
+
+  <!-- SDK 自动包含项目目录下的 .cs 文件，无需显式列出测试文件和桩 -->
 
   <ItemGroup>
     <PackageReference Include="xunit" Version="2.9.0" />
