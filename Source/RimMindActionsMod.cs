@@ -1,12 +1,12 @@
 using System;
-using HarmonyLib;
-using RimMind.Application.Common.Interfaces.Extension;
+using RimMind.Actions.Actions;
+using RimMind.Domain.ValueObjects;
+using RimMind.Presentation;
 using UnityEngine;
 using Verse;
 
 namespace RimMind.Actions
 {
-    [Obsolete("RimMindActionsMod is deprecated. All functionality has been migrated to RimMind-Core Mechanisms.")]
     public class RimMindActionsMod : Mod
     {
         public static RimMindActionsSettings Settings { get; private set; } = null!;
@@ -14,6 +14,20 @@ namespace RimMind.Actions
         public RimMindActionsMod(ModContentPack content) : base(content)
         {
             Settings = GetSettings<RimMindActionsSettings>();
+            LongEventHandler.ExecuteWhenFinished(RegisterCompositeTools);
+        }
+
+        private static void RegisterCompositeTools()
+        {
+            try
+            {
+                RimMindAPI.Tools.Register(new StabilizeRestCompositeTool());
+                Log.Message("[RimMind-Actions] Registered composite tool: actions.stabilize_rest");
+            }
+            catch (Exception ex)
+            {
+                RimMindErrors.Warn($"[RimMind-Actions] Failed to register composite tools: {ex.Message}");
+            }
         }
 
         public override string SettingsCategory()

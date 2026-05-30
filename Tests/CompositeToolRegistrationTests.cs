@@ -33,6 +33,15 @@ namespace RimMind.Actions.Tests
             Assert.Contains("pawn.job.set", source);
             Assert.Contains("force_rest", source);
         }
+
+        [Fact]
+        public void ActionsMod_Registers_Composite_Tools()
+        {
+            var source = ReadActionsSource("RimMindActionsMod.cs");
+            Assert.Contains("RegisterCompositeTools", source);
+            Assert.Contains("RimMindAPI.Tools.Register", source);
+            Assert.Contains("new StabilizeRestCompositeTool()", source);
+        }
     }
 }
 
