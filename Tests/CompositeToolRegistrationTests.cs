@@ -23,6 +23,16 @@ namespace RimMind.Actions.Tests
             Assert.Contains("ICompositeToolCall", source);
             Assert.Contains("ExecuteAtomicAsync", source);
         }
+
+        [Fact]
+        public void StabilizeRest_Declares_Atomic_Tool_Dependencies()
+        {
+            var source = ReadActionsSource(Path.Combine("Actions", "StabilizeRestCompositeTool.cs"));
+            Assert.Contains("actions.stabilize_rest", source);
+            Assert.Contains("pawn.draft.toggle", source);
+            Assert.Contains("pawn.job.set", source);
+            Assert.Contains("force_rest", source);
+        }
     }
 }
 
