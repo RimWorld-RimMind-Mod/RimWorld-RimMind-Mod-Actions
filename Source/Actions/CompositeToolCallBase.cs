@@ -20,21 +20,24 @@ namespace RimMind.Actions.Actions
 
         public abstract Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct);
 
+        protected virtual IToolHandler? FindTool(string toolId) => RimMindAPI.Tools.FindById(toolId);
+
         protected async Task<ToolResult> ExecuteAtomicAsync(
             string toolId,
             string argumentsJson,
             ToolCallArgs parentArgs,
             CancellationToken ct)
         {
-            var handler = RimMindAPI.Tools.FindById(toolId);
+            var childCallId = $"{parentArgs.ToolCallId}:{toolId}";
+            var handler = FindTool(toolId);
             if (handler == null)
             {
-                return ToolResult.Fail($"Required tool not registered: {toolId}", parentArgs.ToolCallId, toolId);
+                return ToolResult.Fail($"Required tool not registered: {toolId}", childCallId, toolId);
             }
 
             var childArgs = new ToolCallArgs
             {
-                ToolCallId = $"{parentArgs.ToolCallId}:{toolId}",
+                ToolCallId = childCallId,
                 ToolName = toolId,
                 ArgumentsJson = argumentsJson,
                 NpcId = parentArgs.NpcId,
@@ -44,8 +47,8 @@ namespace RimMind.Actions.Actions
 
             var result = await handler.ExecuteAsync(childArgs, ct).ConfigureAwait(false);
             return result.IsOk
-                ? result.Value with { ToolName = toolId }
-                : ToolResult.Fail(result.Error.Message, parentArgs.ToolCallId, toolId);
+                ? result.Value with { ToolCallId = childCallId, ToolName = toolId }
+                : ToolResult.Fail(result.Error.Message, childCallId, toolId);
         }
     }
 }
