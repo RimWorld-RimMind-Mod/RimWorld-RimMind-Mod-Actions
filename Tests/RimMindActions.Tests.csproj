@@ -33,6 +33,7 @@
   <!-- Actions 源码（不含 RimMindActionsMod.cs，该文件由桩替代） -->
   <ItemGroup>
     <Compile Include="../Source/Actions/CompositeToolCallBase.cs" />
+    <Compile Include="../Source/Actions/StabilizeRestCompositeTool.cs" />
     <Compile Include="../Source/Actions/ActionsBridge.cs" />
     <Compile Include="../Source/RimMindActionsAPI.cs" />
     <Compile Include="../Source/Settings/RimMindActionsSettings.cs" />
