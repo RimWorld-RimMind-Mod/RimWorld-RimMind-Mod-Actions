@@ -45,7 +45,7 @@ namespace RimMind.Actions.Tests
     }
 }
 
-namespace RimMind.Presentation
+namespace RimMind.Application.Api
 {
     public static class RimMindAPI
     {
