@@ -37,6 +37,7 @@
   <ItemGroup>
     <Compile Include="../Source/Actions/CompositeToolCallBase.cs" />
     <Compile Include="../Source/Actions/StabilizeRestCompositeTool.cs" />
+    <Compile Include="../Source/Actions/CompositeToolRegistrar.cs" />
   </ItemGroup>
 
   <!-- 排除 _backup 目录中的备份文件，防止 SDK 默认 glob 自动编译 -->
