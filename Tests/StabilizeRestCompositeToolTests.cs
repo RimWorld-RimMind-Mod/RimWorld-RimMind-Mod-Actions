@@ -16,7 +16,7 @@ namespace RimMind.Actions.Tests
     public class StabilizeRestCompositeToolTests
     {
         [Fact]
-        public async Task ExecuteAsync_InvalidPawnId_Returns_Error_Result()
+        public async Task ExecuteAsync_InvalidPawnId_Returns_Err_Result()
         {
             var tool = new StabilizeRestCompositeTool();
 
@@ -29,11 +29,9 @@ namespace RimMind.Actions.Tests
                 },
                 CancellationToken.None);
 
-            Assert.True(result.IsOk);
-            Assert.True(result.Value.IsError);
-            Assert.Equal("parent-1", result.Value.ToolCallId);
-            Assert.Equal("actions.stabilize_rest", result.Value.ToolName);
-            Assert.Equal("Missing or invalid pawn_id", result.Value.Content);
+            Assert.True(result.IsErr);
+            Assert.Equal(RimMindErrorCode.MechanismInvalidAction, result.Error.Code);
+            Assert.Equal("Missing or invalid pawn_id", result.Error.Message);
         }
 
         [Fact]

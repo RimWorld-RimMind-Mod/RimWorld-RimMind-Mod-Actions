@@ -33,8 +33,11 @@ namespace RimMind.Actions.Actions
         {
             if (!TryGetPawnId(args.ArgumentsJson, out var pawnId))
             {
-                return Result<ToolResult, RimMindError>.Ok(
-                    ToolResult.Fail("Missing or invalid pawn_id", args.ToolCallId, Id));
+                return Result<ToolResult, RimMindError>.Err(
+                    new RimMindError(RimMindErrorCode.MechanismInvalidAction, "Missing or invalid pawn_id")
+                    {
+                        TraceId = args.TraceId
+                    });
             }
 
             var undraftArgs = new JObject
