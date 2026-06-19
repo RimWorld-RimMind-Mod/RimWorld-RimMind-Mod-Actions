@@ -35,12 +35,11 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
-        public void ActionsMod_Registers_Composite_Tools()
+        public void ActionsMod_Registers_Composite_Tools_Via_Registrar()
         {
             var source = ReadActionsSource("RimMindActionsMod.cs");
             Assert.Contains("RegisterCompositeTools", source);
-            Assert.Contains("RimMindAPI.Tools.Register", source);
-            Assert.Contains("new StabilizeRestCompositeTool()", source);
+            Assert.Contains("CompositeToolRegistrar.RegisterAll", source);
         }
     }
 }

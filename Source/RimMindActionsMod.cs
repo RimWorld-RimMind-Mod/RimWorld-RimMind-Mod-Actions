@@ -17,8 +17,8 @@ namespace RimMind.Actions
         {
             try
             {
-                RimMindAPI.Tools.Register(new StabilizeRestCompositeTool());
-                Log.Message("[RimMind-Actions] Registered composite tool: actions.stabilize_rest");
+                CompositeToolRegistrar.RegisterAll(RimMindAPI.Tools, typeof(StabilizeRestCompositeTool).Assembly);
+                Log.Message("[RimMind-Actions] Registered composite tools via reflection");
             }
             catch (Exception ex)
             {
