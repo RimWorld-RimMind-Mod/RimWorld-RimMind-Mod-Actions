@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using RimMind.Actions.Actions;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Tools;
@@ -93,6 +94,60 @@ namespace RimMind.Actions.Tests
             Assert.Equal("haul", result.ToolName);
         }
 
+        [Fact]
+        public void TryGetArgument_Integer_Returns_True_And_Value()
+        {
+            var ok = TestCompositeToolCall.TryGetArgumentForTest("{\"pawn_id\":123}", "pawn_id", out int value);
+            Assert.True(ok);
+            Assert.Equal(123, value);
+        }
+
+        [Fact]
+        public void TryGetArgument_Missing_Key_Returns_False()
+        {
+            var ok = TestCompositeToolCall.TryGetArgumentForTest("{}", "pawn_id", out int value);
+            Assert.False(ok);
+            Assert.Equal(0, value);
+        }
+
+        [Fact]
+        public void TryGetArgument_Wrong_Type_Returns_False()
+        {
+            var ok = TestCompositeToolCall.TryGetArgumentForTest("{\"pawn_id\":\"bad\"}", "pawn_id", out int value);
+            Assert.False(ok);
+            Assert.Equal(0, value);
+        }
+
+        [Fact]
+        public void TryGetArgument_Invalid_Json_Returns_False()
+        {
+            var ok = TestCompositeToolCall.TryGetArgumentForTest("not json", "pawn_id", out int value);
+            Assert.False(ok);
+        }
+
+        [Fact]
+        public void BuildArgumentsJson_Produces_Compact_Json()
+        {
+            var json = TestCompositeToolCall.BuildArgumentsJsonForTest(("pawn_id", 5), ("action", "undraft"));
+            var parsed = JObject.Parse(json);
+            Assert.Equal(5, parsed["pawn_id"]!.Value<int>());
+            Assert.Equal("undraft", parsed["action"]!.Value<string>());
+            Assert.False(json.Contains(" ") || json.Contains("\n"));
+        }
+
+        [Fact]
+        public void BuildStepSummary_Reports_Per_Step_Ok_And_Content()
+        {
+            var summary = TestCompositeToolCall.BuildStepSummaryForTest(
+                ("undraft", ToolResult.Ok("done")),
+                ("rest", ToolResult.Fail("no bed")));
+            var parsed = JObject.Parse(summary);
+            Assert.True(parsed["undraft"]!["ok"]!.Value<bool>());
+            Assert.Equal("done", parsed["undraft"]!["content"]!.Value<string>());
+            Assert.False(parsed["rest"]!["ok"]!.Value<bool>());
+            Assert.Equal("no bed", parsed["rest"]!["content"]!.Value<string>());
+        }
+
         private sealed class TestCompositeToolCall : CompositeToolCallBase
         {
             private readonly IReadOnlyDictionary<string, IToolHandler> _handlers;
@@ -119,6 +174,15 @@ namespace RimMind.Actions.Tests
                 ToolCallArgs parentArgs,
                 CancellationToken ct) =>
                 ExecuteAtomicAsync(toolId, argumentsJson, parentArgs, ct);
+
+            public static bool TryGetArgumentForTest<T>(string json, string key, out T value)
+                => TryGetArgument(json, key, out value);
+
+            public static string BuildArgumentsJsonForTest(params (string Key, object? Value)[] pairs)
+                => BuildArgumentsJson(pairs);
+
+            public static string BuildStepSummaryForTest(params (string Name, ToolResult Result)[] steps)
+                => BuildStepSummary(steps);
 
             protected override IToolHandler? FindTool(string toolId) =>
                 _handlers.TryGetValue(toolId, out var handler) ? handler : null;
