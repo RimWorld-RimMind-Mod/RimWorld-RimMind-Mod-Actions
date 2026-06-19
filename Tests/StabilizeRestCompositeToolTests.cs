@@ -110,6 +110,28 @@ namespace RimMind.Actions.Tests
             Assert.Equal("cannot rest", summary["forceRest"]!["content"]!.Value<string>());
         }
 
+        [Fact]
+        public async Task ExecuteAsync_Cancelled_Between_Steps_Throws_OperationCanceled()
+        {
+            var registry = new FakeToolRegistry();
+            registry.Register(new RecordingHandler("pawn.draft.toggle", ToolResult.Ok("undrafted")));
+            registry.Register(new RecordingHandler("pawn.job.set", ToolResult.Ok("resting")));
+            RimMindAPI.Tools = registry;
+
+            var tool = new StabilizeRestCompositeTool();
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            await Assert.ThrowsAsync<System.OperationCanceledException>(() => tool.ExecuteAsync(
+                new ToolCallArgs
+                {
+                    ToolCallId = "parent-cancel",
+                    ToolName = "actions.stabilize_rest",
+                    ArgumentsJson = "{\"pawn_id\":7}"
+                },
+                cts.Token));
+        }
+
         private sealed class FakeToolRegistry : IToolRegistry
         {
             private readonly Dictionary<string, IToolHandler> _handlers = new Dictionary<string, IToolHandler>();

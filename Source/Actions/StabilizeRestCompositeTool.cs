@@ -1,8 +1,6 @@
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.ValueObjects;
 
@@ -31,7 +29,7 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            if (!TryGetPawnId(args.ArgumentsJson, out var pawnId))
+            if (!TryGetArgument(args.ArgumentsJson, "pawn_id", out int pawnId))
             {
                 return Result<ToolResult, RimMindError>.Err(
                     new RimMindError(RimMindErrorCode.MechanismInvalidAction, "Missing or invalid pawn_id")
@@ -40,42 +38,16 @@ namespace RimMind.Actions.Actions
                     });
             }
 
-            var undraftArgs = new JObject
-            {
-                ["pawn_id"] = pawnId,
-                ["action"] = "undraft"
-            }.ToString(Formatting.None);
+            var undraftArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "undraft"));
+            var restArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "force_rest"));
 
-            var restArgs = new JObject
-            {
-                ["pawn_id"] = pawnId,
-                ["action"] = "force_rest"
-            }.ToString(Formatting.None);
+            var undraft = await ExecuteAtomicAsync("pawn.draft.toggle", undraftArgs, args, ct).ConfigureAwait(false);
+            ct.ThrowIfCancellationRequested();
+            var rest = await ExecuteAtomicAsync("pawn.job.set", restArgs, args, ct).ConfigureAwait(false);
 
-            var undraft = await ExecuteAtomicAsync(
-                "pawn.draft.toggle",
-                undraftArgs,
-                args,
-                ct).ConfigureAwait(false);
-            var rest = await ExecuteAtomicAsync(
-                "pawn.job.set",
-                restArgs,
-                args,
-                ct).ConfigureAwait(false);
-
-            var summary = new JObject
-            {
-                ["undraft"] = new JObject
-                {
-                    ["ok"] = !undraft.IsError,
-                    ["content"] = undraft.Content
-                },
-                ["forceRest"] = new JObject
-                {
-                    ["ok"] = !rest.IsError,
-                    ["content"] = rest.Content
-                }
-            }.ToString(Formatting.None);
+            // "Undraft pawn if possible" — undraft is best-effort: its failure does NOT fail
+            // the composite. rest is the authoritative step; IsError follows rest.
+            var summary = BuildStepSummary(("undraft", undraft), ("forceRest", rest));
 
             return Result<ToolResult, RimMindError>.Ok(new ToolResult
             {
@@ -84,27 +56,6 @@ namespace RimMind.Actions.Actions
                 Content = summary,
                 IsError = rest.IsError
             });
-        }
-
-        private static bool TryGetPawnId(string argumentsJson, out int pawnId)
-        {
-            pawnId = 0;
-
-            try
-            {
-                var json = JObject.Parse(argumentsJson);
-                var token = json["pawn_id"];
-                if (token == null || token.Type != JTokenType.Integer)
-                {
-                    return false;
-                }
-
-                return int.TryParse(token.ToString(), out pawnId);
-            }
-            catch (JsonException)
-            {
-                return false;
-            }
         }
     }
 }
