@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Newtonsoft.Json.Linq;
 using RimMind.Actions.Actions;
 using RimMind.Application.Common.Interfaces.Tools;
+using RimMind.Application.Common.Models.Agent;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
@@ -131,6 +132,12 @@ namespace RimMind.Actions.Tests
             }
 
             public IReadOnlyList<ToolDefinition> GetAllDefinitions() =>
+                _handlers.Values.Select(h => h.Definition).ToList();
+
+            public IReadOnlyList<IToolHandler> GetHandlersForScope(AgentScopeKind scopeKind) =>
+                _handlers.Values.ToList();
+
+            public IReadOnlyList<ToolDefinition> GetDefinitionsForScope(AgentScopeKind scopeKind) =>
                 _handlers.Values.Select(h => h.Definition).ToList();
         }
 

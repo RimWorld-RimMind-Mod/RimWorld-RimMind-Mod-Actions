@@ -26,6 +26,9 @@
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/IToolRegistry.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/ICompositeToolCall.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolDefinition.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolManifest.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolRiskLevel.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Agent/AgentScopeKind.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolCallArgs.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolResult.cs" />
   </ItemGroup>
@@ -34,9 +37,11 @@
   <ItemGroup>
     <Compile Include="../Source/Actions/CompositeToolCallBase.cs" />
     <Compile Include="../Source/Actions/StabilizeRestCompositeTool.cs" />
-    <Compile Include="../Source/Actions/ActionsBridge.cs" />
-    <Compile Include="../Source/RimMindActionsAPI.cs" />
-    <Compile Include="../Source/Settings/RimMindActionsSettings.cs" />
+  </ItemGroup>
+
+  <!-- 排除 _backup 目录中的备份文件，防止 SDK 默认 glob 自动编译 -->
+  <ItemGroup>
+    <Compile Remove="_backup/**" />
   </ItemGroup>
 
   <!-- SDK 自动包含项目目录下的 .cs 文件，无需显式列出测试文件和桩 -->
