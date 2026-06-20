@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -60,6 +61,7 @@ namespace RimMind.Actions.Actions
         protected static bool TryGetArgument<T>(string argumentsJson, string key, out T value)
         {
             value = default!;
+            if (argumentsJson == null) return false;
             try
             {
                 var token = JObject.Parse(argumentsJson)[key];
@@ -79,7 +81,15 @@ namespace RimMind.Actions.Actions
             {
                 return false;
             }
-            catch (System.FormatException)
+            catch (FormatException)
+            {
+                return false;
+            }
+            catch (OverflowException)
+            {
+                return false;
+            }
+            catch (InvalidCastException)
             {
                 return false;
             }

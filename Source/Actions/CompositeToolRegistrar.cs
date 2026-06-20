@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using RimMind.Application.Common.Interfaces.Tools;
+using RimMind.Domain.ValueObjects;
 
 namespace RimMind.Actions.Actions
 {
@@ -23,8 +24,19 @@ namespace RimMind.Actions.Actions
 
             foreach (var type in toolTypes)
             {
-                var tool = (CompositeToolCallBase)Activator.CreateInstance(type)!;
-                registry.Register(tool);
+                try
+                {
+                    var tool = (CompositeToolCallBase)Activator.CreateInstance(type)!;
+                    registry.Register(tool);
+                }
+                catch (MissingMethodException)
+                {
+                    RimMindErrors.Warn($"[RimMind-Actions] Skipped {type.FullName}: no parameterless constructor");
+                }
+                catch (Exception ex)
+                {
+                    RimMindErrors.Warn($"[RimMind-Actions] Skipped {type.FullName}: {ex.Message}", ex);
+                }
             }
         }
     }

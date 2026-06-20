@@ -126,6 +126,35 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
+        public void TryGetArgument_Null_Json_Returns_False()
+        {
+            var ok = TestCompositeToolCall.TryGetArgumentForTest(null!, "pawn_id", out int value);
+            Assert.False(ok);
+        }
+
+        [Fact]
+        public void TryGetArgument_String_Returns_True_And_Value()
+        {
+            var ok = TestCompositeToolCall.TryGetArgumentForTest("{\"action\":\"undraft\"}", "action", out string value);
+            Assert.True(ok);
+            Assert.Equal("undraft", value);
+        }
+
+        [Fact]
+        public void TryGetArgument_Explicit_Null_Returns_False()
+        {
+            var ok = TestCompositeToolCall.TryGetArgumentForTest("{\"pawn_id\":null}", "pawn_id", out int value);
+            Assert.False(ok);
+        }
+
+        [Fact]
+        public void TryGetArgument_Overflow_Returns_False()
+        {
+            var ok = TestCompositeToolCall.TryGetArgumentForTest("{\"pawn_id\":99999999999999999999}", "pawn_id", out int value);
+            Assert.False(ok);
+        }
+
+        [Fact]
         public void BuildArgumentsJson_Produces_Compact_Json()
         {
             var json = TestCompositeToolCall.BuildArgumentsJsonForTest(("pawn_id", 5), ("action", "undraft"));
@@ -133,6 +162,21 @@ namespace RimMind.Actions.Tests
             Assert.Equal(5, parsed["pawn_id"]!.Value<int>());
             Assert.Equal("undraft", parsed["action"]!.Value<string>());
             Assert.False(json.Contains(" ") || json.Contains("\n"));
+        }
+
+        [Fact]
+        public void BuildArgumentsJson_Empty_Pairs_Returns_Empty_Object()
+        {
+            var json = TestCompositeToolCall.BuildArgumentsJsonForTest();
+            Assert.Equal("{}", json);
+        }
+
+        [Fact]
+        public void BuildArgumentsJson_Null_Value_Produces_Json_Null()
+        {
+            var json = TestCompositeToolCall.BuildArgumentsJsonForTest(("key", (object?)null));
+            var parsed = JObject.Parse(json);
+            Assert.Equal(JTokenType.Null, parsed["key"]!.Type);
         }
 
         [Fact]
@@ -146,6 +190,13 @@ namespace RimMind.Actions.Tests
             Assert.Equal("done", parsed["undraft"]!["content"]!.Value<string>());
             Assert.False(parsed["rest"]!["ok"]!.Value<bool>());
             Assert.Equal("no bed", parsed["rest"]!["content"]!.Value<string>());
+        }
+
+        [Fact]
+        public void BuildStepSummary_Empty_Steps_Returns_Empty_Object()
+        {
+            var summary = TestCompositeToolCall.BuildStepSummaryForTest();
+            Assert.Equal("{}", summary);
         }
 
         private sealed class TestCompositeToolCall : CompositeToolCallBase
