@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
@@ -13,8 +14,20 @@ using Xunit;
 
 namespace RimMind.Actions.Tests
 {
-    public class StabilizeRestCompositeToolTests
+    public class StabilizeRestCompositeToolTests : IDisposable
     {
+        private readonly IToolRegistry? _originalTools;
+
+        public StabilizeRestCompositeToolTests()
+        {
+            _originalTools = RimMindAPI.Tools;
+        }
+
+        public void Dispose()
+        {
+            RimMindAPI.Tools = _originalTools!;
+        }
+
         [Fact]
         public async Task ExecuteAsync_InvalidPawnId_Returns_Err_Result()
         {
