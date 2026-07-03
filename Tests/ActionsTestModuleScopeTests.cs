@@ -12,7 +12,7 @@ namespace RimMind.Actions.Tests
     /// </summary>
     public class ActionsTestModuleScopeTests
     {
-        private static readonly string TestsDir = Path.GetFullPath(
+        private static readonly string RepoRoot = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 
         // File names whose presence outside _backup/ indicates a Core-type test leak.
@@ -31,7 +31,7 @@ namespace RimMind.Actions.Tests
         [Fact]
         public void Actions_Tests_Do_Not_Contain_Core_Domain_Test_Files()
         {
-            var testsRoot = Path.Combine(TestsDir, "RimMind-Actions", "Tests");
+            var testsRoot = Path.Combine(RepoRoot, "RimMind-Actions", "Tests");
             Assert.True(Directory.Exists(testsRoot), $"Tests directory missing: {testsRoot}");
 
             var offending = Directory.GetFiles(testsRoot, "*.cs", SearchOption.TopDirectoryOnly)
@@ -46,7 +46,7 @@ namespace RimMind.Actions.Tests
         [Fact]
         public void Actions_Tests_Backup_Directory_Exists()
         {
-            var backupDir = Path.Combine(TestsDir, "RimMind-Actions", "Tests", "_backup");
+            var backupDir = Path.Combine(RepoRoot, "RimMind-Actions", "Tests", "_backup");
             Assert.True(Directory.Exists(backupDir),
                 $"_backup directory missing: {backupDir}. It must hold migrated/removed test files.");
         }
