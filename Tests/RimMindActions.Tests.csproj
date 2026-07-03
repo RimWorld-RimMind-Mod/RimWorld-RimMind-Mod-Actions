@@ -17,23 +17,20 @@
     <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindErrors.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/TraceContext.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Common/ThreadAffinityAttribute.cs" />
-    <Compile Include="../../RimMind-Core/Source/Domain/Enums/MechanismRisk.cs" />
-    <Compile Include="../../RimMind-Core/Source/Domain/Enums/RiskLevel.cs" />
-    <Compile Include="../../RimMind-Core/Source/Domain/Llm/StructuredTool.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Extension/IExtension.cs" />
-    <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Extension/IAgentActionBridge.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/IToolHandler.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/IToolRegistry.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/ICompositeToolCall.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolDefinition.cs" />
-    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolManifest.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolRiskLevel.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolManifest.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Agent/AgentScopeKind.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolCallArgs.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolResult.cs" />
   </ItemGroup>
 
-  <!-- Actions 源码（不含 RimMindActionsMod.cs，该文件由桩替代） -->
+  <!-- Actions 源码（不含 RimMindActionsMod.cs：该文件依赖 Verse.Mod/Log，
+       测试通过 CompositeToolRegistrationTests 用源文本断言注册行为） -->
   <ItemGroup>
     <Compile Include="../Source/Actions/CompositeToolCallBase.cs" />
     <Compile Include="../Source/Actions/StabilizeRestCompositeTool.cs" />
