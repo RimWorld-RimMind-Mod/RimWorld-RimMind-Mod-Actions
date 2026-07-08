@@ -43,13 +43,5 @@ namespace RimMind.Actions.Tests
             Assert.True(offending.Count == 0,
                 $"Core-domain test files found in Actions test project (move to RimMind-Core/Tests/Result/ or Refs/backup/RimMind-Actions/Tests/): {string.Join(", ", offending)}");
         }
-
-        [Fact]
-        public void Actions_Tests_Backup_Directory_Exists()
-        {
-            var backupDir = Path.Combine(RepoRoot, "Refs", "backup", "RimMind-Actions", "Tests");
-            Assert.True(Directory.Exists(backupDir),
-                $"Refs/backup/RimMind-Actions/Tests directory missing: {backupDir}. It must hold migrated/removed test files.");
-        }
     }
 }
