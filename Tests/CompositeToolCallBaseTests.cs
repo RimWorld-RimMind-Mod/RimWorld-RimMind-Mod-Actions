@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -225,6 +226,13 @@ namespace RimMind.Actions.Tests
             Assert.Equal("{}", summary);
         }
 
+        [Fact]
+        public void OwnerModId_Is_Virtual_And_Overridable_By_Subclass()
+        {
+            var tool = new CustomOwnerCompositeTool();
+            Assert.Equal("ThirdPartyMod", tool.OwnerModId);
+        }
+
         private sealed class TestCompositeToolCall : CompositeToolCallBase
         {
             private readonly IReadOnlyDictionary<string, IToolHandler> _handlers;
@@ -290,6 +298,16 @@ namespace RimMind.Actions.Tests
                 ReceivedCancellationToken = ct;
                 return Task.FromResult(_result);
             }
+        }
+
+        private sealed class CustomOwnerCompositeTool : CompositeToolCallBase
+        {
+            public override string Id => "test.custom_owner";
+            public override ToolDefinition Definition => new ToolDefinition { Id = Id };
+            public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
+            public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct) =>
+                Task.FromResult(Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("ok")));
+            public override string OwnerModId => "ThirdPartyMod";
         }
     }
 }

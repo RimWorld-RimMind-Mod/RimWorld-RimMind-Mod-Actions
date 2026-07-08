@@ -15,7 +15,7 @@ namespace RimMind.Actions.Actions
     {
         public abstract string Id { get; }
 
-        public string OwnerModId => "RimMindActions";
+        public virtual string OwnerModId => "RimMindActions";
 
         public abstract ToolDefinition Definition { get; }
 
