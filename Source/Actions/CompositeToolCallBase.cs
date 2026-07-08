@@ -97,6 +97,25 @@ namespace RimMind.Actions.Actions
         }
 
         /// <summary>
+        /// Tries to read a typed argument, returning a <see cref="Result{T, RimMindError}"/> with
+        /// <see cref="RimMindErrorCode.MechanismInvalidAction"/> on failure. DRYs the common
+        /// validate-or-return-error pattern used by composite tools.
+        /// </summary>
+        protected static Result<T, RimMindError> TryGetArgumentOrError<T>(
+            string argumentsJson, string key, string? traceId)
+        {
+            if (TryGetArgument(argumentsJson, key, out T value))
+            {
+                return Result<T, RimMindError>.Ok(value);
+            }
+            return Result<T, RimMindError>.Err(
+                new RimMindError(RimMindErrorCode.MechanismInvalidAction, $"Missing or invalid {key}")
+                {
+                    TraceId = traceId
+                });
+        }
+
+        /// <summary>
         /// Builds a compact JSON argument payload for a child atomic tool call.
         /// </summary>
         protected static string BuildArgumentsJson(params (string Key, object? Value)[] pairs)

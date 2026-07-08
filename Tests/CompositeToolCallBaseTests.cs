@@ -182,6 +182,35 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
+        public void TryGetArgumentOrError_Valid_Value_Returns_Ok()
+        {
+            var result = TestCompositeToolCall.TryGetArgumentOrErrorForTest<int>(
+                "{\"pawn_id\":99}", "pawn_id", "trace-1");
+            Assert.True(result.IsOk);
+            Assert.Equal(99, result.Value);
+        }
+
+        [Fact]
+        public void TryGetArgumentOrError_Missing_Key_Returns_Err_With_MechanismInvalidAction()
+        {
+            var result = TestCompositeToolCall.TryGetArgumentOrErrorForTest<int>(
+                "{}", "pawn_id", "trace-2");
+            Assert.True(result.IsErr);
+            Assert.Equal(RimMindErrorCode.MechanismInvalidAction, result.Error.Code);
+            Assert.Contains("pawn_id", result.Error.Message);
+            Assert.Equal("trace-2", result.Error.TraceId);
+        }
+
+        [Fact]
+        public void TryGetArgumentOrError_Invalid_Json_Returns_Err()
+        {
+            var result = TestCompositeToolCall.TryGetArgumentOrErrorForTest<int>(
+                "bad", "pawn_id", null);
+            Assert.True(result.IsErr);
+            Assert.Equal(RimMindErrorCode.MechanismInvalidAction, result.Error.Code);
+        }
+
+        [Fact]
         public void BuildArgumentsJson_Produces_Compact_Json()
         {
             var json = TestCompositeToolCall.BuildArgumentsJsonForTest(("pawn_id", 5), ("action", "undraft"));
@@ -262,6 +291,10 @@ namespace RimMind.Actions.Tests
 
             public static bool TryGetArgumentForTest<T>(string json, string key, out T value)
                 => TryGetArgument(json, key, out value);
+
+            public static Result<T, RimMindError> TryGetArgumentOrErrorForTest<T>(
+                string argumentsJson, string key, string? traceId)
+                => TryGetArgumentOrError<T>(argumentsJson, key, traceId);
 
             public static string BuildArgumentsJsonForTest(params (string Key, object? Value)[] pairs)
                 => BuildArgumentsJson(pairs);
