@@ -15,7 +15,8 @@ namespace RimMind.Actions.Tests
         private static readonly string RepoRoot = Path.GetFullPath(
             Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
 
-        // File names whose presence outside _backup/ indicates a Core-type test leak.
+        // File names whose presence in Tests/ indicates a Core-type test leak.
+        // Migrated/removed test files now live under Refs/backup/RimMind-Actions/Tests/.
         private static readonly string[] BannedTestFiles =
         {
             "ActionResultTests.cs",
@@ -40,7 +41,7 @@ namespace RimMind.Actions.Tests
                 .ToList();
 
             Assert.True(offending.Count == 0,
-                $"Core-domain test files found in Actions test project (move to RimMind-Core/Tests/Result/ or _backup/): {string.Join(", ", offending)}");
+                $"Core-domain test files found in Actions test project (move to RimMind-Core/Tests/Result/ or Refs/backup/RimMind-Actions/Tests/): {string.Join(", ", offending)}");
         }
 
         [Fact]
