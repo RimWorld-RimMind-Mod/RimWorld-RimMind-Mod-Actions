@@ -95,6 +95,32 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
+        public async Task ExecuteAtomicAsync_Propagates_PawnId_From_Parent_To_Child()
+        {
+            var handler = new CapturingToolHandler(
+                Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("done", "handler-id", "handler-name")));
+            var composite = new TestCompositeToolCall(new Dictionary<string, IToolHandler>
+            {
+                ["move_to"] = handler
+            });
+            var parentArgs = new ToolCallArgs
+            {
+                ToolCallId = "parent-pawn",
+                ToolName = "composite",
+                ArgumentsJson = "{}",
+                PawnId = 42,
+                NpcId = "npc-1",
+                TraceId = "trace-1",
+                Ct = CancellationToken.None
+            };
+
+            await composite.ExecuteAtomicForTestAsync("move_to", "{}", parentArgs, CancellationToken.None);
+
+            Assert.NotNull(handler.ReceivedArgs);
+            Assert.Equal(42, handler.ReceivedArgs!.PawnId);
+        }
+
+        [Fact]
         public void TryGetArgument_Integer_Returns_True_And_Value()
         {
             var ok = TestCompositeToolCall.TryGetArgumentForTest("{\"pawn_id\":123}", "pawn_id", out int value);

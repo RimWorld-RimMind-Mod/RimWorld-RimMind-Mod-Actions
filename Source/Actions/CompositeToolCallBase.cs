@@ -43,6 +43,7 @@ namespace RimMind.Actions.Actions
                 ToolCallId = childCallId,
                 ToolName = toolId,
                 ArgumentsJson = argumentsJson,
+                PawnId = parentArgs.PawnId,
                 NpcId = parentArgs.NpcId,
                 TraceId = parentArgs.TraceId,
                 Ct = ct
