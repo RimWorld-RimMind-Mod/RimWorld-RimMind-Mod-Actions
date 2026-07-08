@@ -25,6 +25,19 @@ namespace RimMind.Actions.Actions
 
         protected virtual IToolHandler? FindTool(string toolId) => RimMindAPI.Tools.FindById(toolId);
 
+        /// <summary>
+        /// Checks whether all <see cref="RequiredToolIds"/> are currently registered.
+        /// Composite tools can call this for early validation before execution.
+        /// </summary>
+        protected virtual bool AreRequiredToolsRegistered()
+        {
+            foreach (var toolId in RequiredToolIds)
+            {
+                if (FindTool(toolId) == null) return false;
+            }
+            return true;
+        }
+
         protected async Task<ToolResult> ExecuteAtomicAsync(
             string toolId,
             string argumentsJson,

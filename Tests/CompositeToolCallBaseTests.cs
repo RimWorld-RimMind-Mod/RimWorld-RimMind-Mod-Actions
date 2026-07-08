@@ -262,6 +262,23 @@ namespace RimMind.Actions.Tests
             Assert.Equal("ThirdPartyMod", tool.OwnerModId);
         }
 
+        [Fact]
+        public void AreRequiredToolsRegistered_All_Present_Returns_True()
+        {
+            var composite = new TestCompositeToolCall(new Dictionary<string, IToolHandler>
+            {
+                ["test_tool"] = new CapturingToolHandler(Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("ok")))
+            });
+            Assert.True(composite.AreRequiredToolsRegisteredForTest());
+        }
+
+        [Fact]
+        public void AreRequiredToolsRegistered_Missing_Tool_Returns_False()
+        {
+            var composite = new TestCompositeToolCall(new Dictionary<string, IToolHandler>());
+            Assert.False(composite.AreRequiredToolsRegisteredForTest());
+        }
+
         private sealed class TestCompositeToolCall : CompositeToolCallBase
         {
             private readonly IReadOnlyDictionary<string, IToolHandler> _handlers;
@@ -301,6 +318,8 @@ namespace RimMind.Actions.Tests
 
             public static string BuildStepSummaryForTest(params (string Name, ToolResult Result)[] steps)
                 => BuildStepSummary(steps);
+
+            public bool AreRequiredToolsRegisteredForTest() => AreRequiredToolsRegistered();
 
             protected override IToolHandler? FindTool(string toolId) =>
                 _handlers.TryGetValue(toolId, out var handler) ? handler : null;
