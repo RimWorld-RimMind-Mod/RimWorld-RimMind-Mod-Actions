@@ -29,14 +29,12 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            if (!TryGetArgument(args.ArgumentsJson, "pawn_id", out int pawnId))
+            var pawnIdResult = TryGetArgumentOrError<int>(args.ArgumentsJson, "pawn_id", args.TraceId);
+            if (pawnIdResult.IsErr)
             {
-                return Result<ToolResult, RimMindError>.Err(
-                    new RimMindError(RimMindErrorCode.MechanismInvalidAction, "Missing or invalid pawn_id")
-                    {
-                        TraceId = args.TraceId
-                    });
+                return Result<ToolResult, RimMindError>.Err(pawnIdResult.Error);
             }
+            int pawnId = pawnIdResult.Value;
 
             var undraftArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "undraft"));
             var restArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "force_rest"));
