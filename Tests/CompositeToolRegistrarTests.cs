@@ -61,6 +61,16 @@ namespace RimMind.Actions.Tests
             Assert.DoesNotContain("test.bad_no_ctor", registry.RegisteredIds);
         }
 
+        [Fact]
+        public void RegisterAll_Type_Without_Parameterless_Constructor_Logs_Via_Verse_Log()
+        {
+            Verse.Log.Messages.Clear();
+            var registry = new FakeRegistry();
+            CompositeToolRegistrar.RegisterAll(registry, typeof(BadCompositeToolNoCtor).Assembly);
+
+            Assert.Contains(Verse.Log.Messages, m => m.Contains("Skipped") && m.Contains("BadCompositeToolNoCtor"));
+        }
+
         private sealed class FakeRegistry : IToolRegistry
         {
             private readonly System.Collections.Generic.List<IToolHandler> _handlers = new();

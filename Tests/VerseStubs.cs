@@ -13,6 +13,17 @@ namespace Verse
     }
 
     /// <summary>
+    /// Log 桩：捕获日志消息到静态列表，供测试断言
+    /// </summary>
+    public static class Log
+    {
+        public static readonly System.Collections.Generic.List<string> Messages = new();
+        public static void Message(string msg) { Messages.Add(msg); System.Diagnostics.Debug.WriteLine(msg); }
+        public static void Warning(string msg) { Messages.Add(msg); System.Diagnostics.Debug.WriteLine(msg); }
+        public static void Error(string msg) { Messages.Add(msg); System.Diagnostics.Debug.WriteLine(msg); }
+    }
+
+    /// <summary>
     /// ModSettings 桩：提供 ExposeData 虚方法和 Write 空实现
     /// </summary>
     public class ModSettings

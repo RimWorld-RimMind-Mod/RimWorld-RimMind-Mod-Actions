@@ -1,6 +1,5 @@
 using System;
 using RimMind.Actions.Actions;
-using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
 using Verse;
 
@@ -22,7 +21,7 @@ namespace RimMind.Actions
             }
             catch (Exception ex)
             {
-                RimMindErrors.Warn($"[RimMind-Actions] Failed to register composite tools: {ex.Message}");
+                Log.Warning($"[RimMind-Actions] Failed to register composite tools: {ex.Message}");
             }
         }
     }

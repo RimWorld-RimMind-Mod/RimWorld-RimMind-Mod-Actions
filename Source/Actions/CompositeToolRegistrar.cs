@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using RimMind.Application.Common.Interfaces.Tools;
-using RimMind.Domain.ValueObjects;
+using Verse;
 
 namespace RimMind.Actions.Actions
 {
@@ -31,11 +31,11 @@ namespace RimMind.Actions.Actions
                 }
                 catch (MissingMethodException)
                 {
-                    RimMindErrors.Warn($"[RimMind-Actions] Skipped {type.FullName}: no parameterless constructor");
+                    Log.Warning($"[RimMind-Actions] Skipped {type.FullName}: no parameterless constructor");
                 }
                 catch (Exception ex)
                 {
-                    RimMindErrors.Warn($"[RimMind-Actions] Skipped {type.FullName}: {ex.Message}", ex);
+                    Log.Warning($"[RimMind-Actions] Skipped {type.FullName}: {ex.Message}");
                 }
             }
         }
