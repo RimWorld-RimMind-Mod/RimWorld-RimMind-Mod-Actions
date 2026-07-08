@@ -7,7 +7,7 @@
   <supportedVersions>
     <li>1.6</li>
   </supportedVersions>
-  <description>Intent-to-action execution library. Maps AI intent IDs (assign_work, force_rest, recruit_agree, etc.) to concrete RimWorld game operations. [v2.0 BREAKING CHANGES]</description>
+  <description>Composite ToolCall orchestration layer. Combines atomic ToolCalls from Core into high-level actions (e.g., stabilize_rest: undraft then force_rest). Registered via reflection. [v2.0]</description>
   <modDependencies>
     <li>
       <packageId>brrainz.harmony</packageId>
