@@ -46,9 +46,9 @@ namespace RimMind.Actions.Tests
         [Fact]
         public void Actions_Tests_Backup_Directory_Exists()
         {
-            var backupDir = Path.Combine(RepoRoot, "RimMind-Actions", "Tests", "_backup");
+            var backupDir = Path.Combine(RepoRoot, "Refs", "backup", "RimMind-Actions", "Tests");
             Assert.True(Directory.Exists(backupDir),
-                $"_backup directory missing: {backupDir}. It must hold migrated/removed test files.");
+                $"Refs/backup/RimMind-Actions/Tests directory missing: {backupDir}. It must hold migrated/removed test files.");
         }
     }
 }

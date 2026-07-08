@@ -24,11 +24,6 @@
     <PackageReference Include="Newtonsoft.Json" Version="13.0.*" PrivateAssets="All" />
   </ItemGroup>
 
-  <!-- 排除 _backup 目录中的备份文件，防止 SDK 默认 glob 自动编译 -->
-  <ItemGroup>
-    <Compile Remove="_backup/**" />
-  </ItemGroup>
-
   <ItemGroup>
     <Reference Include="0_RimMindDomain">
       <HintPath>../../RimMind-Core/$(GameVersion)/Assemblies/0_RimMindDomain.dll</HintPath>

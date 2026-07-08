@@ -37,11 +37,6 @@
     <Compile Include="../Source/Actions/CompositeToolRegistrar.cs" />
   </ItemGroup>
 
-  <!-- 排除 _backup 目录中的备份文件，防止 SDK 默认 glob 自动编译 -->
-  <ItemGroup>
-    <Compile Remove="_backup/**" />
-  </ItemGroup>
-
   <!-- SDK 自动包含项目目录下的 .cs 文件，无需显式列出测试文件和桩 -->
 
   <ItemGroup>
