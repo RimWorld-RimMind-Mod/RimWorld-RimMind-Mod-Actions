@@ -71,6 +71,19 @@ namespace RimMind.Actions.Tests
             Assert.Contains(Verse.Log.Messages, m => m.Contains("Skipped") && m.Contains("BadCompositeToolNoCtor"));
         }
 
+        [Fact]
+        public void RegisterAll_Duplicate_Id_Logs_Warning_And_Skips_Second()
+        {
+            Verse.Log.Messages.Clear();
+            var registry = new FakeRegistry();
+            // RegisterAll scans the test assembly which contains both StabilizeRestCompositeTool
+            // and DuplicateIdCompositeTool — both declare Id "actions.stabilize_rest".
+            CompositeToolRegistrar.RegisterAll(registry, typeof(DuplicateIdCompositeTool).Assembly);
+
+            Assert.Single(registry.RegisteredHandlers);
+            Assert.Contains(Verse.Log.Messages, m => m.Contains("duplicate Id") && m.Contains("actions.stabilize_rest"));
+        }
+
         private sealed class FakeRegistry : IToolRegistry
         {
             private readonly System.Collections.Generic.List<IToolHandler> _handlers = new();
@@ -110,6 +123,19 @@ namespace RimMind.Actions.Tests
         public BadCompositeToolNoCtor(int unused) { }
 
         public override string Id => "test.bad_no_ctor";
+        public override ToolDefinition Definition => new ToolDefinition { Id = Id };
+        public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
+        public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct) =>
+            throw new NotImplementedException();
+    }
+
+    /// <summary>
+    /// Test-only composite tool with same Id as StabilizeRestCompositeTool.
+    /// Used to verify duplicate Id detection.
+    /// </summary>
+    public sealed class DuplicateIdCompositeTool : CompositeToolCallBase
+    {
+        public override string Id => "actions.stabilize_rest";
         public override ToolDefinition Definition => new ToolDefinition { Id = Id };
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
         public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct) =>

@@ -27,6 +27,11 @@ namespace RimMind.Actions.Actions
                 try
                 {
                     var tool = (CompositeToolCallBase)Activator.CreateInstance(type)!;
+                    if (registry.FindById(tool.Id) != null)
+                    {
+                        Log.Warning($"[RimMind-Actions] Skipped {type.FullName}: duplicate Id '{tool.Id}' already registered");
+                        continue;
+                    }
                     registry.Register(tool);
                 }
                 catch (MissingMethodException)
