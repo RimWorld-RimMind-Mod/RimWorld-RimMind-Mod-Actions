@@ -47,6 +47,8 @@ public sealed class MyCompositeTool : CompositeToolCallBase { ... }
 |------|------|
 | `ExecuteAtomicAsync(toolId, argsJson, parentArgs, ct)` | 调用子原子工具，规整 child ToolCallId/ToolName |
 | `TryGetArgument<T>(json, key, out T)` | 从参数 JSON 安全读取强类型字段 |
+| `TryGetArgumentOrError<T>(json, key, traceId)` | 安全读取强类型字段，失败直接返回 `Result<T, RimMindError>.Err` |
+| `AreRequiredToolsRegistered()` | 检查所有 `RequiredToolIds` 是否已注册，供前置验证 |
 | `BuildArgumentsJson(params (key,value)[])` | 构造子调用紧凑 JSON 参数 |
 | `BuildStepSummary(params (name,result)[])` | 构造标准 `{"ok":bool,"content":str}` 汇总 |
 
@@ -80,4 +82,4 @@ public sealed class MyCompositeTool : CompositeToolCallBase { ... }
 
 ## 历史说明
 
-H2 阶段（2026-05）将 24 个内置动作迁移至 Core Mechanism 系统。原 `ActionsBridge`、`RimMindActionsAPI`、`BatchActionIntent`、`ActionResult`、`WorkTargetInfo`、`RimMindActionsSettings`、`DelayedActionQueue` 已于本次清理移除（备份至 `Source/_backup/`）。运行时 Core 使用 `NullAgentActionBridge` 作为 `IAgentActionBridge` 默认实现。
+H2 阶段（2026-05）将 24 个内置动作迁移至 Core Mechanism 系统。原 `ActionsBridge`、`RimMindActionsAPI`、`BatchActionIntent`、`ActionResult`、`WorkTargetInfo`、`RimMindActionsSettings`、`DelayedActionQueue` 已于本次清理移除（备份至 `Refs/backup/RimMind-Actions/`）。运行时 Core 使用 `NullAgentActionBridge` 作为 `IAgentActionBridge` 默认实现。
