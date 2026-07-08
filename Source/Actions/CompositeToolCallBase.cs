@@ -65,7 +65,7 @@ namespace RimMind.Actions.Actions
             var result = await handler.ExecuteAsync(childArgs, ct).ConfigureAwait(false);
             return result.IsOk
                 ? result.Value with { ToolCallId = childCallId, ToolName = toolId }
-                : ToolResult.Fail(result.Error.Message, childCallId, toolId);
+                : ToolResult.Fail($"[{result.Error.Code}] {result.Error.Message}", childCallId, toolId);
         }
 
         /// <summary>
