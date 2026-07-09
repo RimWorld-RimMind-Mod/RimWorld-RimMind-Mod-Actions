@@ -22,7 +22,7 @@
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/IToolRegistry.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/ICompositeToolCall.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolDefinition.cs" />
-    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolRiskLevel.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Enums/RiskLevel.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolManifest.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Agent/AgentScopeKind.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolCallArgs.cs" />
