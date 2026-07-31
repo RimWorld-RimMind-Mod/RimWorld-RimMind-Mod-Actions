@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>RimMind.Actions.Tests</RootNamespace>
+    <AssemblyName>RimMindActions.Tests</AssemblyName>
+    <LangVersion>12.0</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Core 域类型 -->
+  <ItemGroup>
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/Result.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindError.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindErrorCode.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindErrors.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/TraceContext.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Common/ThreadAffinityAttribute.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Extension/IExtension.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/IToolHandler.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/IToolRegistry.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Tools/ICompositeToolCall.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolDefinition.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Enums/RiskLevel.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolManifest.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Agent/AgentScopeKind.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolCallArgs.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolResult.cs" />
+  </ItemGroup>
+
+  <!-- Actions 源码（不含 RimMindActionsMod.cs：该文件依赖 Verse.Mod/Log，
+       测试通过 CompositeToolRegistrationTests 用源文本断言注册行为） -->
+  <ItemGroup>
+    <Compile Include="../Source/Actions/CompositeToolCallBase.cs" />
+    <Compile Include="../Source/Actions/StabilizeRestCompositeTool.cs" />
+    <Compile Include="../Source/Actions/CompositeToolRegistrar.cs" />
+  </ItemGroup>
+
+  <!-- SDK 自动包含项目目录下的 .cs 文件，无需显式列出测试文件和桩 -->
+
+  <ItemGroup>
+    <PackageReference Include="xunit" Version="2.9.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+</Project>
