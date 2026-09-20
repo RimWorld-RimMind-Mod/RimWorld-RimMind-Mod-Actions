@@ -1,11 +1,12 @@
 using System;
 using RimMind.Actions.Actions;
+using RimMind.Presentation;
 using RimMind.Presentation.Api;
 using Verse;
 
 namespace RimMind.Actions
 {
-    public class RimMindActionsMod : Mod
+    public class RimMindActionsMod : RimMindSubmodBase
     {
         public RimMindActionsMod(ModContentPack content) : base(content)
         {
