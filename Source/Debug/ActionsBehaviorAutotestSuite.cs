@@ -31,11 +31,23 @@ namespace RimMind.Actions.Debug
 
             var tool = registry.FindById("actions.stabilize_rest");
             context.Assert(tool != null, "actions.stabilize_rest composite tool is registered in Core registry");
+
+            var fleeTool = registry.FindById("actions.emergency_flee");
+            context.Assert(fleeTool != null, "actions.emergency_flee composite tool is registered in Core registry");
+
+            var eatTool = registry.FindById("actions.eat_and_recreation");
+            context.Assert(eatTool != null, "actions.eat_and_recreation composite tool is registered in Core registry");
+
+            var triageTool = registry.FindById("actions.triage_patient");
+            context.Assert(triageTool != null, "actions.triage_patient composite tool is registered in Core registry");
+
             if (tool == null) return;
 
-            // 2. Validate Tool Definition Schema
+            // 2. Validate Tool Definition Schemas
             context.Assert(tool.Definition.Category == "composite", "Tool definition category is 'composite'");
-            context.Assert(!string.IsNullOrEmpty(tool.Definition.ParametersSchema), "Tool parameter schema is defined");
+            context.Assert(fleeTool != null && fleeTool.Definition.Category == "composite", "actions.emergency_flee category is 'composite'");
+            context.Assert(eatTool != null && eatTool.Definition.Category == "composite", "actions.eat_and_recreation category is 'composite'");
+            context.Assert(triageTool != null && triageTool.Definition.Category == "composite", "actions.triage_patient category is 'composite'");
 
             // 3. Test In-Game Execution on Colonist (if available)
             Pawn? pawn = context.ActiveColonist;

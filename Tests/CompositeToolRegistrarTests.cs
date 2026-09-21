@@ -43,8 +43,11 @@ namespace RimMind.Actions.Tests
             var registry = new FakeRegistry();
             CompositeToolRegistrar.RegisterAll(registry, typeof(StabilizeRestCompositeTool).Assembly);
 
-            Assert.Single(registry.RegisteredHandlers);
-            Assert.Equal("actions.stabilize_rest", registry.RegisteredIds.Single());
+            Assert.DoesNotContain(registry.RegisteredHandlers, h => h.GetType().IsAbstract);
+            Assert.Contains("actions.stabilize_rest", registry.RegisteredIds);
+            Assert.Contains("actions.emergency_flee", registry.RegisteredIds);
+            Assert.Contains("actions.eat_and_recreation", registry.RegisteredIds);
+            Assert.Contains("actions.triage_patient", registry.RegisteredIds);
         }
 
         [Fact]
@@ -80,7 +83,7 @@ namespace RimMind.Actions.Tests
             // and DuplicateIdCompositeTool — both declare Id "actions.stabilize_rest".
             CompositeToolRegistrar.RegisterAll(registry, typeof(DuplicateIdCompositeTool).Assembly);
 
-            Assert.Single(registry.RegisteredHandlers);
+            Assert.Equal(4, registry.RegisteredHandlers.Count);
             Assert.Contains(Verse.Log.Messages, m => m.Contains("duplicate Id") && m.Contains("actions.stabilize_rest"));
         }
 

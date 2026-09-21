@@ -57,6 +57,9 @@ public sealed class MyCompositeTool : CompositeToolCallBase { ... }
 | Id | 原子依赖 | 说明 |
 |----|----------|------|
 | `actions.stabilize_rest` | `pawn.draft.toggle`, `pawn.job.set` | 解除征召（best-effort）→ 强制休息 |
+| `actions.emergency_flee` | `pawn.draft.toggle`, `pawn.goto` | 紧急避险：征召 pawn 并强行移动到安全逃生位置撤出战火 |
+| `actions.eat_and_recreation` | `pawn.draft.toggle`, `pawn.job.set` | 休整调理：解除征召 → 补充食物充饥 → 安排娱乐活动 |
+| `actions.triage_patient` | `pawn.draft.toggle`, `pawn.job.set` | 战地救护：引导医护人员就近照料并包扎治疗重伤病患 |
 
 ## 代码约定
 

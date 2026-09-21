@@ -34,6 +34,9 @@
   <ItemGroup>
     <Compile Include="../Source/Actions/CompositeToolCallBase.cs" />
     <Compile Include="../Source/Actions/StabilizeRestCompositeTool.cs" />
+    <Compile Include="../Source/Actions/EmergencyFleeCompositeTool.cs" />
+    <Compile Include="../Source/Actions/EatAndRecreationCompositeTool.cs" />
+    <Compile Include="../Source/Actions/TriagePatientCompositeTool.cs" />
     <Compile Include="../Source/Actions/CompositeToolRegistrar.cs" />
   </ItemGroup>
 
