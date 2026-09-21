@@ -33,12 +33,18 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var patientIdResult = TryGetArgumentOrError<int>(args.ArgumentsJson, "patient_id", args.TraceId);
-            if (patientIdResult.IsErr)
+            int patientId = 0;
+            if (!TryGetArgument<int>(args.ArgumentsJson, "patient_id", out patientId) || patientId <= 0)
             {
-                return Result<ToolResult, RimMindError>.Err(patientIdResult.Error);
+                if (!TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out patientId) || patientId <= 0)
+                {
+                    return Result<ToolResult, RimMindError>.Err(
+                        new RimMindError(RimMindErrorCode.MechanismInvalidAction, "Missing or invalid patient_id")
+                        {
+                            TraceId = args.TraceId
+                        });
+                }
             }
-            int patientId = patientIdResult.Value;
 
             // 1. Direct patient to emergency bed rest
             var patientRestArgs = BuildArgumentsJson(("pawn_id", patientId), ("action", "force_rest"));
