@@ -69,7 +69,6 @@ namespace RimMind.Actions.Tests
                 CancellationToken.None);
 
             Assert.True(result.IsOk);
-            Assert.True(false, result.Value.Content);
             var parsed = JObject.Parse(result.Value.Content);
             Assert.True((bool)parsed["seekShelter"]!["ok"]!);
             Assert.True((bool)parsed["stabilizeMorale"]!["ok"]!);

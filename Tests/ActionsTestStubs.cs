@@ -7,6 +7,9 @@ using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Agent;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.ValueObjects;
+using Xunit;
+
+[assembly: CollectionBehavior(DisableTestParallelization = true)]
 
 namespace RimMind.Actions.Tests
 {
