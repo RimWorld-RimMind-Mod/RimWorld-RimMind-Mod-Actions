@@ -1,38 +1,47 @@
-[h1]RimMind - Actions[/h1]
-AI 意图到游戏动作的翻译引擎，将 AI 的抽象意图（如 assign_work、force_rest、social_dining）转换为具体的 RimWorld 游戏操作。
+[h1]RimMind - Actions (自主行动)[/h1]
 
-[h2] RimMind 是什么 [/h2]
-RimMind 是一套 AI 驱动的 RimWorld 模组套件，通过接入大语言模型 (LLM)，让殖民者拥有人格、记忆、对话和自主决策能力。
+[i]让 AI 真正操控你的殖民者——不只是聊天，更是合乎人性的自主行动。[/i]
+[i]Empower AI to truly direct your colonists — Not just dialogue, but autonomous and organic in-game actions.[/i]
 
-[h2] 子模组列表与依赖关系 [/h2]
-[table][tr][td][b] 模组 [/b][/td][td][b] 职责 [/b][/td][td][b] 依赖 [/b][/td][td][b] GitHub [/b][/td][/tr][tr][td] RimMind-Core [/td][td] API 客户端、请求调度、上下文打包 [/td][td] Harmony [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core] 链接 [/url][/td][/tr][tr][td][b] RimMind-Actions [/b][/td][td] AI 控制小人的动作执行库 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions] 链接 [/url][/td][/tr][tr][td] RimMind-Advisor [/td][td] AI 扮演小人做出工作决策 [/td][td] Core, Actions [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor] 链接 [/url][/td][/tr][tr][td] RimMind-Dialogue [/td][td] AI 驱动的对话系统 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Dialogue] 链接 [/url][/td][/tr][tr][td] RimMind-Memory [/td][td] 记忆采集与上下文注入 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory] 链接 [/url][/td][/tr][tr][td] RimMind-Personality [/td][td] AI 生成人格与想法 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality] 链接 [/url][/td][/tr][tr][td] RimMind-Storyteller [/td][td] AI 叙事者，智能选择事件 [/td][td] Core [/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Storyteller] 链接 [/url][/td][/tr][/table]
-[code]Core ── Actions ── Advisor
-  ├── Dialogue
-  ├── Memory
-  ├── Personality
-  └── Storyteller[/code]
+[hr]
+[h2]📖 中文介绍 / Chinese Overview[/h2]
 
-[h2] 核心能力 [/h2]
-[b] 意图映射系统 [/b] - 将 AI 的抽象意图（如 assign_work、force_rest、social_dining）转换为具体的游戏操作。25 个内置动作覆盖工作、社交、战斗、心情等场景。
-[b] 智能工作分配 [/b] - AI 可以指定具体坐标的工作目标，比如"去 (45,32) 挖掘那块花岗岩"，而非盲目接受默认选择。
-[b] 社交行为支持 [/b] - 支持聚餐、放松、赠送物品、求爱、分手等社交互动，让 AI 能主动经营殖民者关系。
-[b] 风险分级控制 [/b] - 每个动作标记风险等级（Low / Medium / High / Critical），玩家可在设置中按风险级别禁用特定动作。
-[b] 批量执行 [/b] - 支持多步骤任务序列，自动处理队列逻辑，首个动作打断当前任务，后续追加。
-[b] 延迟执行 [/b] - DelayedActionQueue 将动作投递到主线程执行，避免非主线程调用游戏 API。
+[b]RimMind-Actions[/b] 是 RimMind 智能体套件的“执行器官”。在原版 RimWorld 中，殖民者只是遵循死板工作优先级的打工机器。而 RimMind-Actions 将底层原子工具组合为高级复合机制（Composite ToolCalls），让殖民者在面临疲惫、饥饿、伤病或突发袭击时，能够自主做出合乎常理的求生与日常决策。
 
-[h2] 动作类型一览 [/h2]
-[table][tr][td][b] 类别 [/b][/td][td][b] 动作 [/b][/td][/tr][tr][td] 工作 [/td][td] assign_work, set_work_priority, cancel_job [/td][/tr][tr][td] 生存 [/td][td] force_rest, eat_food, tend_pawn, rescue_pawn [/td][/tr][tr][td] 社交 [/td][td] social_dining, social_relax, give_item, romance_accept, romance_breakup [/td][/tr][tr][td] 战斗 [/td][td] draft, undraft, drop_weapon [/td][/tr][tr][td] 移动 [/td][td] move_to [/td][/tr][tr][td] 心情 [/td][td] inspire_work, inspire_fight, inspire_trade, add_thought, trigger_mental_state [/td][/tr][tr][td] 关系 [/td][td] recruit_agree, adjust_faction [/td][/tr][tr][td] 事件 [/td][td] trigger_incident [/td][/tr][/table]
+[h3]🌟 核心特性[/h3]
+[list]
+[*] [b]高级复合动作 (Composite Tools)[/b]：
+  [list]
+  [*] [b]紧急回避 (flee_emergency)[/b]：突遭袭击、大火或致命危险时，小人本能避开危险区域逃往安全庇护所。
+  [*] [b]进食与娱乐 (eat_and_recreation)[/b]：身心俱疲时，智能寻觅最佳餐食与娱乐设施，防止心情雪崩。
+  [*] [b]战地分诊与急救 (triage_patient)[/b]：医生自动识别失血与濒死同伴，实施最高优先级的急救与护理。
+  [*] [b]静养与体能恢复 (stabilize_rest)[/b]：在筋疲力尽前主动躺卧休养。
+  [/list]
+[*] [b]4 级风险安全门禁 (Risk Gating)[/b]：每个动作具备 Low / Medium / High / Critical 风险评级。你可以一键开启高危拦截审批，杜绝 AI 越权做出意外破坏性举动。
+[*] [b]无缝衔接 Advisor 与 Core[/b]：动作执行结果会产生生理与心理反馈（饱腹感、娱乐、精力），形成完整的“感知-决策-执行-反馈”闭环。
+[/list]
 
-[h2] 风险分级系统 [/h2]
-每个动作标记风险等级，玩家可在设置中控制：
-[table][tr][td][b] 等级 [/b][/td][td][b] 含义 [/b][/td][td][b] 示例 [/b][/td][/tr][tr][td] Low [/td][td] 可随时撤销 [/td][td] move_to, assign_work, cancel_job, undraft [/td][/tr][tr][td] Medium [/td][td] 生存/社交/工作类轻微副作用 [/td][td] force_rest, draft, tend_pawn, rescue_pawn, eat_food, set_work_priority, social_dining, social_relax, give_item, romance_accept, add_thought [/td][/tr][tr][td] High [/td][td] 重大行为改变 [/td][td] arrest_pawn, drop_weapon, romance_breakup, recruit_agree, adjust_faction, inspire_work, inspire_fight, inspire_trade [/td][/tr][tr][td] Critical [/td][td] 不可逆或影响全局 [/td][td] trigger_mental_state, trigger_incident [/td][/tr][/table]
+[hr]
+[h2]🌐 English Overview[/h2]
 
-[h2] 常见问题 [/h2]
-[b] Q: Actions 可以单独使用吗？ [/b]
-A: Actions 本身不直接调用 AI，需要配合 Advisor 或其他模块使用。它提供动作执行能力，AI 决策由其他模块负责。
+[b]RimMind-Actions[/b] acts as the "hands and feet" of the RimMind AI suite. Instead of passively following mechanical work priorities, pawns utilize Composite ToolCalls to execute lifelike survival and lifestyle actions when prompted by their autonomous agent loops or the AI Advisor.
 
-[b] Q: 高风险动作会自动执行吗？ [/b]
-A: Actions 本身不区分自动执行和手动审批。配合 Advisor 使用时，被玩家禁用的动作不会执行。你可以在模组设置中取消勾选不想让 AI 使用的动作。
+[h3]🌟 Key Highlights[/h3]
+[list]
+[*] [b]Smart Composite ToolCalls[/b]:
+  [list]
+  [*] [b]Emergency Flee[/b]: Pawns instinctively retreat from active fire, raids, or fatal perils to designated safe spots.
+  [*] [b]Eat & Recreation[/b]: Colonists proactively seek out meals and social activities before mental breaks occur.
+  [*] [b]Triage Patient[/b]: Medically skilled pawns automatically prioritize stabilizing bleeding companions.
+  [*] [b]Rest & Stabilize[/b]: Pawns rest and recover before exhaustion causes catastrophic collapses.
+  [/list]
+[*] [b]Four-Tier Risk Safety Gates[/b]: Actions are categorized into Low, Medium, High, and Critical risk. Dangerous decisions can require player approval through interactive dialogs.
+[*] [b]Complete Agent Feedback Loop[/b]: Action results provide direct physiological feedback (Joy, Rest, Food), completing the cognitive loop.
+[/list]
 
-[b] Q: 可以禁用特定动作吗？ [/b]
-A: 可以。在模组设置中按风险级别查看，勾选禁用不想要的动作。
+[hr]
+[h2]⚙️ 依赖与顺序 / Requirements & Order[/h2]
+[list]
+[*] [b]必需前置 (Required)[/b]: Harmony, [b]RimMind-Core[/b]
+[*] [b]推荐搭配 (Recommended)[/b]: [b]RimMind-Advisor[/b]（赋予殖民者自主决策大脑）
+[/list]
