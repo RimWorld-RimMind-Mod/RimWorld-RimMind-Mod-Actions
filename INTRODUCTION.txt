@@ -1,13 +1,18 @@
+[h1]RimMind - Actions[/h1]
 [h1]RimMind - Actions (自主行动)[/h1]
 
+让 AI 真正操控你的殖民者——不只是聊天，是行动。
 [i]让 AI 真正操控你的殖民者——不只是聊天，更是合乎人性的自主行动。[/i]
 [i]Empower AI to truly direct your colonists — Not just dialogue, but autonomous and organic in-game actions.[/i]
 
+[h2]你的殖民者，活了[/h2]
 [hr]
 [h2]📖 中文介绍 / Chinese Overview[/h2]
 
+想象一下：你的殖民者不再只是执行工作优先级列表的机器。AI 看到的是活生生的殖民地——谁快崩溃了需要休息、哪块矿脉最近该去挖、谁和谁关系好可以聊聊天。它可能让一个疲惫的殖民者去社交放松而不是继续工作，也可能在战斗中征召所有人然后发现忘了留人做饭。
 [b]RimMind-Actions[/b] 是 RimMind 智能体套件的“执行器官”。在原版 RimWorld 中，殖民者只是遵循死板工作优先级的打工机器。而 RimMind-Actions 将底层原子工具组合为高级复合机制（Composite ToolCalls），让殖民者在面临疲惫、饥饿、伤病或突发袭击时，能够自主做出合乎常理的求生与日常决策。
 
+这种"人性化"的决策，是纯规则系统做不到的。配合 RimMind-Advisor 使用时，殖民者会[i]自己[/i]决定该做什么。你只需要看着他们活出自己的故事。
 [h3]🌟 核心特性[/h3]
 [list]
 [*] [b]高级复合动作 (Composite Tools)[/b]：
@@ -21,11 +26,16 @@
 [*] [b]无缝衔接 Advisor 与 Core[/b]：动作执行结果会产生生理与心理反馈（饱腹感、娱乐、精力），形成完整的“感知-决策-执行-反馈”闭环。
 [/list]
 
+[h2]为什么这很好玩[/h2]
 [hr]
 [h2]🌐 English Overview[/h2]
 
+[b]精确到坐标的工作分配[/b]
+不只是"去采矿"，而是"去 (45,32) 挖那块花岗岩"。AI 能看到地图上每个工作目标的位置和距离，做出比默认 WorkGiver 更聪明的选择——优先分配最近的矿脉、最急需救治的伤员、最合适的烹饪台。你再也不用手动微操每个殖民者去哪个矿脉了。
 [b]RimMind-Actions[/b] acts as the "hands and feet" of the RimMind AI suite. Instead of passively following mechanical work priorities, pawns utilize Composite ToolCalls to execute lifelike survival and lifestyle actions when prompted by their autonomous agent loops or the AI Advisor.
 
+[b]社交不再是摆设[/b]
+RimWorld 的社交系统很丰富，但你几乎从不手动操作——谁会特意让两个殖民者聊天？现在 AI 会。殖民者会主动找人聊天放松、赠送物品、甚至发起恋爱。看着两个殖民者因为 AI 的安排走到一起，比任何随机事件都有代入感。分手也是——AI 可能因为角色扮演的原因让一对恋人分手，然后你需要处理随之而来的心情暴跌。
 [h3]🌟 Key Highlights[/h3]
 [list]
 [*] [b]Smart Composite ToolCalls[/b]:
@@ -39,6 +49,61 @@
 [*] [b]Complete Agent Feedback Loop[/b]: Action results provide direct physiological feedback (Joy, Rest, Food), completing the cognitive loop.
 [/list]
 
+[b]AI 会犯错，而这正是乐趣[/b]
+这是最重要的部分。AI 可能让殖民者在错误的时间征召、把武器丢在战场上、或者触发一场精神崩溃。但这些"失误"恰恰创造了最有趣的故事——那个在袭击中丢掉步枪的殖民者，最后赤手空拳打倒了袭击者，这种故事比一切顺利的完美运营更令人难忘。
+
+你随时可以撤销 AI 的决定，或者干脆关掉高风险动作——控制权始终在你手里。
+
+[b]批量执行，规划多步骤任务[/b]
+AI 可以让一个殖民者"先走到地图中央 → 采矿 → 烹饪 → 休息"，所有步骤自动排队。饥饿或睡眠打断时只丢失当前步骤，其余保留。这意味着 AI 可以像真正的殖民地管理者一样规划一天的工作流程。
+
+[b]灵感与崩溃，情绪的过山车[/b]
+AI 可以给殖民者注入工作灵感让效率翻倍，也可以触发精神崩溃。你决定边界——想看混乱就开启 Critical 级别，想安稳就只留 Low 和 Medium。每种选择都是不同的游戏体验。
+
+[h2]24 个动作，覆盖殖民地日常[/h2]
+
+[table][tr][td][b]类别[/b][/td][td][b]AI 能做什么[/b][/td][/tr]
+[tr][td]工作[/td][td]分配具体工作岗位（精确到坐标）、调整优先级、取消任务[/td][/tr]
+[tr][td]生存[/td][td]强制休息、寻找食物、救治伤员、救援倒地者[/td][/tr]
+[tr][td]社交[/td][td]聊天放松、赠送物品、发起恋爱、分手[/td][/tr]
+[tr][td]战斗[/td][td]征召、解除征召、丢弃武器[/td][/tr]
+[tr][td]移动[/td][td]移动到指定坐标[/td][/tr]
+[tr][td]心情[/td][td]触发灵感（工作/射击/交易）、添加思想、触发精神崩溃[/td][/tr]
+[tr][td]关系[/td][td]同意招募、调整派系关系[/td][/tr]
+[tr][td]事件[/td][td]触发随机事件[/td][/tr][/table]
+
+[h2]风险分级，你说了算[/h2]
+
+每个动作都有风险等级。你可以一键禁用所有高风险动作，也可以逐个勾选。不想让 AI 触发精神崩溃？关掉就行。不想让 AI 动你的派系关系？关掉。你始终是殖民地的最终决策者。
+
+[table][tr][td][b]等级[/b][/td][td][b]含义[/b][/td][td][b]示例[/b][/td][/tr]
+[tr][td]Low[/td][td]日常操作，随时可撤销[/td][td]移动、取消任务、分配工作[/td][/tr]
+[tr][td]Medium[/td][td]有轻微影响但总体安全[/td][td]休息、吃饭、社交、征召[/td][/tr]
+[tr][td]High[/td][td]可能产生重大后果[/td][td]逮捕、丢弃武器、分手、招募、调整派系[/td][/tr]
+[tr][td]Critical[/td][td]不可逆或影响全局[/td][td]触发精神崩溃、触发事件[/td][/tr][/table]
+
+[h2]RimMind 套件[/h2]
+
+Actions 是 RimMind 的一部分：
+[table][tr][td][b]模组[/b][/td][td][b]职责[/b][/td][/tr]
+[tr][td]RimMind-Core[/td][td]API 客户端、请求调度[/td][/tr]
+[tr][td][b]RimMind-Actions[/b][/td][td][b]AI 控制小人的动作执行[/b][/td][/tr]
+[tr][td]RimMind-Advisor[/td][td]AI 扮演小人做出决策[/td][/tr]
+[tr][td]RimMind-Dialogue[/td][td]AI 驱动的对话系统[/td][/tr]
+[tr][td]RimMind-Memory[/td][td]记忆采集与上下文注入[/td][/tr]
+[tr][td]RimMind-Personality[/td][td]AI 生成人格与想法[/td][/tr]
+[tr][td]RimMind-Storyteller[/td][td]AI 叙事者[/td][/tr][/table]
+
+[h2]常见问题[/h2]
+
+[b]Q: Actions 可以单独使用吗？[/b]
+A: Actions 提供动作执行能力，但本身不调用 AI。需要配合 Advisor 或其他模块使用。
+
+[b]Q: AI 会不会做出疯狂的事？[/b]
+A: 你完全掌控边界。高风险动作默认需要手动启用，Critical 级别建议保持禁用。
+
+[b]Q: 可以只让 AI 管日常，不管战斗吗？[/b]
+A: 可以。在设置中禁用 draft、drop_weapon 等战斗相关动作即可。
 [hr]
 [h2]⚙️ 依赖与顺序 / Requirements & Order[/h2]
 [list]
