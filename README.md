@@ -38,6 +38,13 @@ graph TD
     Core --> BridgeRimTalk["Bridge-RimTalk"]
 ```
 
+## 🎮 实机特性展示 / In-Game Showcase
+
+![RimMind-Actions In-Game Showcase](docs/images/showcase.jpg)
+
+- **复合 Mechanism 动作**：将基础原子工具组合为高级事务性行为（如 `StabilizeRestCompositeTool` 战地止血、解除征召并引导强制卧床休养）。
+- **4 级安全门禁拦截**：执行前严格校验物理可达性、生理能力、危险区域防暴毙与玩家控制保护，杜绝 AI 乱拆关键设施或冲入火海。
+
 ## H2 空壳化状态
 
 ### 迁移概要
@@ -156,6 +163,13 @@ RimMind is an AI-driven RimWorld mod suite that connects to Large Language Model
 | RimMind-Bridge-RimChat | Coordination & mutual exclusion layer with RimChat mod | Core, RimChat | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimChat) |
 | RimMind-Bridge-RimTalk | Dialogue bubbles & context bridge with RimTalk mod | Core, RimTalk | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimTalk) |
 | RimMind-Extension-ModelService | Extended model gateway, OpenCode Go subscription & multi-endpoint load balancing | Core | [Link](https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Extension-ModelService) |
+
+## 🎮 In-Game Showcase / Feature Demonstration
+
+![RimMind-Actions In-Game Showcase](docs/images/showcase.jpg)
+
+- **Composite Mechanism Actions**: Orchestrates atomic tools into atomic transactional behaviors (e.g. `StabilizeRestCompositeTool` un-drafting wounded pawns and commanding mandatory bedrest).
+- **4-Level Safety Gating**: Pre-execution validation strictly checks physical pathing reachable status, biological capacities, hazard evasion, and player command protection, preventing AI colonists from endangering themselves or dismantling vital structures.
 
 ## H2 Hollowing-out Status
 
