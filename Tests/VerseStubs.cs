@@ -117,6 +117,9 @@ namespace Verse
     /// </summary>
     public static class VerseStringExtensions
     {
+        public static bool CanTranslate(this string key) => true;
         public static TaggedString Translate(this string key) => new TaggedString(key);
+        public static TaggedString Translate(this string key, params object[] args)
+            => new TaggedString(args == null || args.Length == 0 ? key : $"{key}:{string.Join(",", args)}");
     }
 }

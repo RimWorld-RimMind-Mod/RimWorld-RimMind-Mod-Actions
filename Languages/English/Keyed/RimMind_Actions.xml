@@ -1,4 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
   <RimMind.Actions.SettingsTitle>RimMind - Actions</RimMind.Actions.SettingsTitle>
+  <RimMind.Actions.Permission.Disabled>[Permission Blocked] Colony leader has disabled autonomous decisions in domain ({0}) for this colonist.</RimMind.Actions.Permission.Disabled>
+  <RimMind.Actions.Permission.RequireApproval>[Approval Required] This operation ({0}) requires colony leader approval before execution.</RimMind.Actions.Permission.RequireApproval>
+  <RimMind.Actions.Safety.WoodReserve>[Safety Guard] Colony wood reserve is only {0}, below minimum survival threshold (reserve: {1}); construction material consumption blocked!</RimMind.Actions.Safety.WoodReserve>
+  <RimMind.Actions.Safety.SteelReserve>[Safety Guard] Colony steel reserve is only {0}, below minimum survival threshold (reserve: {1}); construction material consumption blocked!</RimMind.Actions.Safety.SteelReserve>
+  <RimMind.Actions.Safety.BlueprintCap>[Safety Guard] Colony already has {0} active construction blueprints, reaching concurrency limit ({1}); new projects blocked!</RimMind.Actions.Safety.BlueprintCap>
+  <RimMind.Actions.Equipment.DownedOrUnable>Colonist {0} is currently downed or unable to change apparel.</RimMind.Actions.Equipment.DownedOrUnable>
+  <RimMind.Actions.Equipment.NoSuitableApparel>Colonist {0} (ambient: {1}°C, comfy: {2}~{3}°C) found no suitable replacement apparel in storage.</RimMind.Actions.Equipment.NoSuitableApparel>
+  <RimMind.Actions.Equipment.WearJobFailed>Failed to issue wear job for {1} on colonist {0}.</RimMind.Actions.Equipment.WearJobFailed>
+  <RimMind.Actions.Equipment.WearJobSuccess>[Autonomous Apparel] Colonist {0} (temp: {1}°C) ordered to wear {2}.</RimMind.Actions.Equipment.WearJobSuccess>
+  <RimMind.Actions.Zone.NoOpenArea>[Planning Failed] No contiguous open flat area found nearby (requires &gt;= 4 valid cells).</RimMind.Actions.Zone.NoOpenArea>
+  <RimMind.Actions.Zone.GrowZoneDetail>Growing Zone (crop: {0}, cells: {1})</RimMind.Actions.Zone.GrowZoneDetail>
+  <RimMind.Actions.Zone.StockpileZoneDetail>Stockpile Zone (cells: {0})</RimMind.Actions.Zone.StockpileZoneDetail>
+  <RimMind.Actions.Zone.NoValidCells>Failed to designate any valid zone cells.</RimMind.Actions.Zone.NoValidCells>
+  <RimMind.Actions.Zone.DesignateSuccess>Successfully designated {2} centered at ({0}, {1}).</RimMind.Actions.Zone.DesignateSuccess>
+  <RimMind.Actions.Room.SiteSelectionFailed>[Site Selection Failed] No open flat buildable area found nearby for a {0}x{0} room.</RimMind.Actions.Room.SiteSelectionFailed>
+  <RimMind.Actions.Room.PlanSuccess>Successfully planned and placed {2} room blueprints ({3}x{3} walls/door/bed/light) centered at ({0}, {1}).</RimMind.Actions.Room.PlanSuccess>
+  <RimMind.Actions.Room.LeaseChained> Chained continuous construction lease on builder {0}.</RimMind.Actions.Room.LeaseChained>
 </LanguageData>
