@@ -70,7 +70,7 @@ namespace RimMind.Actions.Actions
             var billAutonomyDomain = IsEssentialSurvivalRecipe(recipeDef.defName)
                 ? AutonomyDomain.EmergencySurvival
                 : AutonomyDomain.WorktableBills;
-            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, billAutonomyDomain);
+            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, billAutonomyDomain, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));

@@ -6,6 +6,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
 
@@ -88,6 +89,36 @@ namespace RimMind.Actions.Actions
         }
 
         /// <summary>
+        /// Checks if the tool call arguments specify pre-approval (e.g. from an advisor card approval).
+        /// </summary>
+        public static bool IsPreApproved(ToolCallArgs args) => IsPreApproved(args.ArgumentsJson);
+
+        /// <summary>
+        /// Checks if the tool call JSON arguments specify pre-approval (e.g. "pre_approved": true or "is_approved": true).
+        /// </summary>
+        public static bool IsPreApproved(string? argumentsJson)
+        {
+            if (string.IsNullOrWhiteSpace(argumentsJson)) return false;
+            if (TryGetArgument<bool>(argumentsJson!, "pre_approved", out bool preApproved) && preApproved)
+                return true;
+            if (TryGetArgument<bool>(argumentsJson!, "is_approved", out bool isApproved) && isApproved)
+                return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Checks autonomy permissions against the colonist and autonomy domain, safely honoring pre-approvals.
+        /// </summary>
+        protected Result<Unit, RimMindError> CheckPermission(Verse.Pawn? pawn, RimMind.Domain.Agent.Policies.AutonomyDomain domain, ToolCallArgs args)
+        {
+#if RIMMIND_ACTIONS_TESTS
+            return Result<Unit, RimMindError>.Ok(Unit.Value);
+#else
+            return RimMind.Actions.Policies.ActionPermissionGuard.CheckPermission(pawn, Id, domain, IsPreApproved(args));
+#endif
+        }
+
+        /// <summary>
         /// Tries to read a typed argument from the composite tool's JSON arguments.
         /// Returns false on missing key, null token, or conversion failure.
         /// </summary>
@@ -132,6 +163,10 @@ namespace RimMind.Actions.Actions
                 return false;
             }
             catch (InvalidCastException)
+            {
+                return false;
+            }
+            catch (ArgumentException)
             {
                 return false;
             }

@@ -51,7 +51,7 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Colonist pawn not found or invalid.")));
             }
 
-            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.EmergencySurvival);
+            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.EmergencySurvival, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));

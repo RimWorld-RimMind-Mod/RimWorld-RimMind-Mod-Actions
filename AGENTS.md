@@ -24,11 +24,24 @@ H2 阶段后，24 个内置动作已全部迁移至 Core Mechanism 系统。本�
 
 ```
 Source/
-├── RimMindActionsMod.cs              Mod 入口，反射注册组合工具
+├── RimMindActionsMod.cs                       Mod 入口，反射注册组合工具
 ├── Actions/
-│   ├── CompositeToolCallBase.cs      抽象基类：ExecuteAtomicAsync + 共享 JSON 辅助
-│   ├── StabilizeRestCompositeTool.cs 组合工具：undraft → force_rest
-│   └── CompositeToolRegistrar.cs     反射发现并注册所有 CompositeToolCallBase 子类
+│   ├── CompositeToolCallBase.cs               抽象基类：ExecuteAtomicAsync + 共享 JSON 辅助
+│   ├── CompositeToolRegistrar.cs              反射发现并注册所有 CompositeToolCallBase 子类
+│   ├── ContinuousJobPoller.cs                 多阶段作业持续轮询器（支持 Blueprint_Build -> Frame 过渡跟踪）
+│   ├── StabilizeRestCompositeTool.cs          组合工具：undraft → force_rest
+│   ├── EmergencyFleeCompositeTool.cs          组合工具：紧急撤离危险区
+│   ├── EatAndRecreationCompositeTool.cs       组合工具：进食与娱乐调理
+│   ├── TriagePatientCompositeTool.cs          组合工具：战地救护包扎
+│   ├── PlaceBlueprintCompositeTool.cs         组合工具：放置蓝图并持续运料施工至建筑完成
+│   ├── PlanRoomProjectCompositeTool.cs        组合工具：批量规划房间蓝图并持续施工至全部完成
+│   ├── ClearAreaForBuildCompositeTool.cs      组合工具：清理建筑区域障碍物
+│   ├── DesignatedHarvestCompositeTool.cs      组合工具：指定收获与采集
+│   ├── SetWorkBillCompositeTool.cs            组合工具：工作台配方清单设置
+│   └── ScheduleFarmingCycleCompositeTool.cs   组合工具：种植区农耕周期调度
+└── Policies/
+    ├── ActionPermissionGuard.cs               Pawn 存活/在图/未倒地(!Downed)与 WorkType 权限校验
+    └── ResourceSafetyGuard.cs                 4 级安全门禁与殖民地资源保底红线守卫
 ```
 
 ## 关键 API
@@ -54,12 +67,18 @@ public sealed class MyCompositeTool : CompositeToolCallBase { ... }
 
 ## 组合工具清单
 
-| Id | 原子依赖 | 说明 |
+| Id | 原子依赖 / 机制 | 说明 |
 |----|----------|------|
 | `actions.stabilize_rest` | `pawn.draft.toggle`, `pawn.job.set` | 解除征召（best-effort）→ 强制休息 |
 | `actions.emergency_flee` | `pawn.draft.toggle`, `pawn.goto` | 紧急避险：征召 pawn 并强行移动到安全逃生位置撤出战火 |
 | `actions.eat_and_recreation` | `pawn.draft.toggle`, `pawn.job.set` | 休整调理：解除征召 → 补充食物充饥 → 安排娱乐活动 |
 | `actions.triage_patient` | `pawn.draft.toggle`, `pawn.job.set` | 战地救护：引导医护人员就近照料并包扎治疗重伤病患 |
+| `actions.place_blueprint` | `Designator_Build`, `ContinuousJobPoller` | 放置单格蓝图并轮询驱动 `Blueprint_Build` → `Frame` 运料与施工直至完成 |
+| `actions.plan_room_project` | `Designator_Build`, `ContinuousJobPoller` | 批量规划房间墙体/门/家具蓝图并轮询驱动所有 `Blueprint_Build` → `Frame` 直至完工 |
+| `actions.clear_area_for_build` | `ContinuousJobPoller` | 清理目标建设区域内的树木、碎石与障碍物 |
+| `actions.designated_harvest` | `DesignationDefOf`, `ContinuousJobPoller` | 标记并驱动小人收获成熟作物或砍伐木材 |
+| `actions.set_work_bill` | `Bill_Production`, `ContinuousJobPoller` | 在工作台创建生产清单并驱动小人执行制作 |
+| `actions.schedule_farming_cycle` | `Zone_Growing`, `ContinuousJobPoller` | 配置种植区作物并轮询驱动播种与收获周期 |
 
 ## 代码约定
 

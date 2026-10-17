@@ -137,7 +137,9 @@ namespace RimMind.Actions.Actions
         private static List<string> DetectBottlenecks(Map map, float outdoorTemp, bool hasPower)
         {
             var list = new List<string>();
-            var colonists = map.mapPawns.FreeColonistsSpawned.Where(p => !p.Dead && !p.Downed).ToList();
+            var colonists = map.mapPawns.FreeColonistsSpawned
+                .Where(p => RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
+                .ToList();
 
             bool sleepingOutside = false;
             bool sleepingOnGround = false;

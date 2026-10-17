@@ -103,7 +103,7 @@ namespace RimMind.Actions.Actions
             var autonomyDomain = IsEssentialSurvivalStructure(thingDef.defName)
                 ? AutonomyDomain.EmergencySurvival
                 : AutonomyDomain.BlueprintPlacement;
-            var permCheck = ActionPermissionGuard.CheckPermission(anchorPawn, Id, autonomyDomain);
+            var permCheck = ActionPermissionGuard.CheckPermission(anchorPawn, Id, autonomyDomain, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
@@ -128,7 +128,7 @@ namespace RimMind.Actions.Actions
             }
 
             // 4. Place Blueprint in RimWorld
-            Blueprint? blueprint = null;
+            Blueprint_Build? blueprint = null;
             try
             {
                 blueprint = GenConstruct.PlaceBlueprintForBuild(thingDef, targetCell, map, rot, Faction.OfPlayer, selectedStuff);
@@ -168,8 +168,11 @@ namespace RimMind.Actions.Actions
                         durationTicks: 2500, // 1 in-game hour lease
                         priority: 7.8f,
                         target: blueprint,
-                        jobProvider: p => IssueConstructionSubJob(p, blueprint, thingDef),
-                        completionPredicate: p => blueprint == null || blueprint.Destroyed || blueprint.Position.GetEdifice(map)?.def == thingDef);
+                        jobProvider: p => IssueConstructionSubJob(p, map, blueprint, targetCell),
+                        completionPredicate: p =>
+                            map == null
+                            || ((blueprint == null || blueprint.Destroyed || !blueprint.Spawned)
+                                && !targetCell.GetThingList(map).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned)));
 
                     comp.StartIntentSession(session);
                     sessionStarted = true;
@@ -245,41 +248,46 @@ namespace RimMind.Actions.Actions
             return IntVec3.Invalid;
         }
 
-        private static Job? IssueConstructionSubJob(Pawn pawn, Blueprint blueprint, ThingDef buildingDef)
+        private static Job? IssueConstructionSubJob(Pawn pawn, Map map, Blueprint_Build blueprint, IntVec3 targetCell)
         {
-            if (pawn == null || blueprint == null || blueprint.Destroyed) return null;
+            if (pawn == null || map == null || !targetCell.IsValid || !targetCell.InBounds(map)) return null;
 
-            // Step 1: If blueprint is still a Blueprint_Build, pawn can haul materials or build it
-            if (blueprint is Blueprint_Build bpBuild)
+            if (pawn.workSettings != null && !pawn.workSettings.WorkIsActive(WorkTypeDefOf.Construction))
             {
-                // Verify work capability
-                if (pawn.workSettings != null && !pawn.workSettings.WorkIsActive(WorkTypeDefOf.Construction))
-                {
-                    pawn.workSettings.SetPriority(WorkTypeDefOf.Construction, 1);
-                }
-
-                // If pawn can construct directly:
-                if (pawn.CanReserveAndReach(bpBuild, PathEndMode.Touch, Danger.Some))
-                {
-                    var constructGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints");
-                    if (constructGiver?.Worker is WorkGiver_Scanner scanner)
-                    {
-                        var haulJob = scanner.JobOnThing(pawn, bpBuild, true);
-                        if (haulJob != null) return haulJob;
-                    }
-                }
+                pawn.workSettings.SetPriority(WorkTypeDefOf.Construction, 1);
             }
 
-            // Step 2: If blueprint has become a Frame:
-            var frame = blueprint.Position.GetThingList(blueprint.Map).OfType<Frame>().FirstOrDefault();
+            // Step 1: If blueprint is still active, try delivering resources then finishing frame
+            if (blueprint != null && !blueprint.Destroyed && blueprint.Spawned)
+            {
+                if (pawn.CanReserveAndReach(blueprint, PathEndMode.Touch, Danger.Some))
+                {
+                    var deliverBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints")?.Worker as WorkGiver_Scanner
+                        ?? new WorkGiver_ConstructDeliverResourcesToBlueprints();
+                    var haulJob = deliverBpGiver.JobOnThing(pawn, blueprint, true);
+                    if (haulJob != null) return haulJob;
+
+                    var finishBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
+                        ?? new WorkGiver_ConstructFinishFrames();
+                    var finishBpJob = finishBpGiver.JobOnThing(pawn, blueprint, true);
+                    if (finishBpJob != null) return finishBpJob;
+                }
+                return null;
+            }
+
+            // Step 2: Blueprint was replaced by a Frame at targetCell
+            Frame? frame = targetCell.GetThingList(map).OfType<Frame>().FirstOrDefault(f => !f.Destroyed && f.Spawned);
             if (frame != null && pawn.CanReserveAndReach(frame, PathEndMode.Touch, Danger.Some))
             {
-                var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames");
-                if (finishGiver?.Worker is WorkGiver_Scanner scanner)
-                {
-                    var finishJob = scanner.JobOnThing(pawn, frame, true);
-                    if (finishJob != null) return finishJob;
-                }
+                var deliverFrameGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToFrames")?.Worker as WorkGiver_Scanner
+                    ?? new WorkGiver_ConstructDeliverResourcesToFrames();
+                var deliverJob = deliverFrameGiver.JobOnThing(pawn, frame, true);
+                if (deliverJob != null) return deliverJob;
+
+                var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
+                    ?? new WorkGiver_ConstructFinishFrames();
+                var finishJob = finishGiver.JobOnThing(pawn, frame, true);
+                if (finishJob != null) return finishJob;
             }
 
             return null;

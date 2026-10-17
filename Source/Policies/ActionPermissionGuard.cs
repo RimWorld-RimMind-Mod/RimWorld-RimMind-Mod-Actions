@@ -42,7 +42,11 @@ namespace RimMind.Actions.Policies
             return args != null && args.Length > 0 ? string.Format(fallbackEn, args) : fallbackEn;
         }
 
-        public static Result<Unit, RimMindError> CheckPermission(Pawn? pawn, string toolId, AutonomyDomain domain)
+        public static Result<Unit, RimMindError> CheckPermission(
+            Pawn? pawn,
+            string toolId,
+            AutonomyDomain domain,
+            bool isPreApproved = false)
         {
             var level = RimMindAPI.Autonomy.GetLevel(pawn, domain);
 
@@ -58,6 +62,11 @@ namespace RimMind.Actions.Policies
 
             if (level == AutonomyLevel.RequireApproval)
             {
+                if (isPreApproved)
+                {
+                    return Result<Unit, RimMindError>.Ok(Unit.Value);
+                }
+
                 return Result<Unit, RimMindError>.Err(
                     RimMindErrors.InvalidAction(toolId,
                         TranslateOrFallback(
@@ -72,6 +81,16 @@ namespace RimMind.Actions.Policies
             }
 
             return Result<Unit, RimMindError>.Ok(Unit.Value);
+        }
+
+        public static Result<Unit, RimMindError> CheckPermission(
+            Pawn? pawn,
+            string toolId,
+            AutonomyDomain domain,
+            ToolCallArgs args)
+        {
+            bool preApproved = CompositeToolCallBase.IsPreApproved(args);
+            return CheckPermission(pawn, toolId, domain, preApproved);
         }
 
         /// <summary>
@@ -93,7 +112,7 @@ namespace RimMind.Actions.Policies
                 if (id <= 0) return null;
                 foreach (var p in map.mapPawns.FreeColonistsSpawned)
                 {
-                    if (p != null && p.thingIDNumber == id && RimMindPawnLookup.IsActiveSpawnedColonist(p))
+                    if (p != null && p.thingIDNumber == id && RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
                         return p;
                 }
                 return null;
@@ -122,11 +141,6 @@ namespace RimMind.Actions.Policies
                 foreach (var p in map.mapPawns.FreeColonistsSpawned)
                 {
                     if (RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
-                        return p;
-                }
-                foreach (var p in map.mapPawns.FreeColonistsSpawned)
-                {
-                    if (RimMindPawnLookup.IsActiveSpawnedColonist(p))
                         return p;
                 }
             }

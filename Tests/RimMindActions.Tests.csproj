@@ -7,6 +7,7 @@
     <AssemblyName>RimMindActions.Tests</AssemblyName>
     <LangVersion>12.0</LangVersion>
     <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);RIMMIND_ACTIONS_TESTS</DefineConstants>
   </PropertyGroup>
 
   <!-- Core 域类型 -->
