@@ -29,7 +29,7 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var pawnIdResult = TryGetArgumentOrError<int>(args.ArgumentsJson, "pawn_id", args.TraceId);
+            var pawnIdResult = TryGetPawnIdOrError(args, "pawn_id");
             if (pawnIdResult.IsErr)
             {
                 return Result<ToolResult, RimMindError>.Err(pawnIdResult.Error);

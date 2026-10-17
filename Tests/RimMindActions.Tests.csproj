@@ -27,6 +27,10 @@
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Agent/AgentScopeKind.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolCallArgs.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolResult.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Common/Unit.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Agent/Policies/AutonomyDomain.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Agent/Policies/AutonomyLevel.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Agent/Policies/AgentAutonomyPolicy.cs" />
   </ItemGroup>
 
   <!-- Actions 源码（不含 RimMindActionsMod.cs：该文件依赖 Verse.Mod/Log，
@@ -38,6 +42,7 @@
     <Compile Include="../Source/Actions/EatAndRecreationCompositeTool.cs" />
     <Compile Include="../Source/Actions/TriagePatientCompositeTool.cs" />
     <Compile Include="../Source/Actions/CompositeToolRegistrar.cs" />
+    <Compile Include="../Source/Policies/ResourceSafetyPolicy.cs" />
   </ItemGroup>
 
   <!-- SDK 自动包含项目目录下的 .cs 文件，无需显式列出测试文件和桩 -->

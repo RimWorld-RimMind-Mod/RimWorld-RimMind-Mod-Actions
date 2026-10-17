@@ -68,11 +68,30 @@ namespace RimMind.Actions.Actions
                 : ToolResult.Fail($"[{result.Error.Code}] {result.Error.Message}", childCallId, toolId);
         }
 
+        internal protected static bool TryParsePawnIdString(string? raw, out int parsedId)
+        {
+            parsedId = 0;
+            if (string.IsNullOrWhiteSpace(raw)) return false;
+            var s = raw!.Trim();
+            if (s.StartsWith("NPC-", StringComparison.OrdinalIgnoreCase) ||
+                s.StartsWith("pawn-", StringComparison.OrdinalIgnoreCase))
+            {
+                s = s.Substring(s.IndexOf('-') + 1).Trim();
+            }
+            else if (s.StartsWith("Pawn_", StringComparison.OrdinalIgnoreCase))
+            {
+                int idx = s.Length - 1;
+                while (idx >= 0 && char.IsDigit(s[idx])) idx--;
+                s = s.Substring(idx + 1);
+            }
+            return int.TryParse(s, out parsedId);
+        }
+
         /// <summary>
         /// Tries to read a typed argument from the composite tool's JSON arguments.
         /// Returns false on missing key, null token, or conversion failure.
         /// </summary>
-        protected static bool TryGetArgument<T>(string argumentsJson, string key, out T value)
+        internal protected static bool TryGetArgument<T>(string argumentsJson, string key, out T value)
         {
             value = default!;
             if (argumentsJson == null) return false;
@@ -81,6 +100,15 @@ namespace RimMind.Actions.Actions
                 var token = JObject.Parse(argumentsJson)[key];
                 if (token == null || token.Type == JTokenType.Null)
                 {
+                    return false;
+                }
+                if (typeof(T) == typeof(int) && token.Type == JTokenType.String)
+                {
+                    if (TryParsePawnIdString(token.ToString(), out int parsedInt))
+                    {
+                        value = (T)(object)parsedInt;
+                        return true;
+                    }
                     return false;
                 }
                 var converted = token.Value<T>();
@@ -125,6 +153,32 @@ namespace RimMind.Actions.Actions
                 new RimMindError(RimMindErrorCode.MechanismInvalidAction, $"Missing or invalid {key}")
                 {
                     TraceId = traceId
+                });
+        }
+
+        protected static Result<int, RimMindError> TryGetPawnIdOrError(
+            ToolCallArgs args, string key = "pawn_id")
+        {
+            int contextFallbackId = (args.PawnId.HasValue && args.PawnId.Value > 0)
+                ? args.PawnId.Value
+                : (TryParsePawnIdString(args.NpcId, out int parsedNpcId) && parsedNpcId > 0 ? parsedNpcId : 0);
+
+            if (TryGetArgument<int>(args.ArgumentsJson, key, out int id) && id > 0)
+            {
+                return Result<int, RimMindError>.Ok(id);
+            }
+            if (key != "pawn_id" && TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int fallbackId) && fallbackId > 0)
+            {
+                return Result<int, RimMindError>.Ok(fallbackId);
+            }
+            if (contextFallbackId > 0)
+            {
+                return Result<int, RimMindError>.Ok(contextFallbackId);
+            }
+            return Result<int, RimMindError>.Err(
+                new RimMindError(RimMindErrorCode.MechanismInvalidAction, $"Missing or invalid {key}")
+                {
+                    TraceId = args.TraceId
                 });
         }
 
