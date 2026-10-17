@@ -52,7 +52,7 @@ namespace RimMind.Actions.Actions
             // 1. Resolve Colonist Pawn and Permission Check
             Pawn? pawn = ActionPermissionGuard.ResolveColonistOnMap(map, args, "pawn_id", fallbackToAnyActiveColonist: true);
 
-            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.ResourceMarking);
+            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.ResourceMarking, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));

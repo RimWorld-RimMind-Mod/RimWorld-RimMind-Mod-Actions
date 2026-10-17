@@ -204,6 +204,28 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
+        public void TryGetArgument_JObjectOrJArray_DoesNotThrow_ReturnsFalse()
+        {
+            var okObj = TestCompositeToolCall.TryGetArgumentForTest<string>("{\"data\":{\"nested\":1}}", "data", out var valObj);
+            Assert.False(okObj);
+            Assert.Null(valObj);
+
+            var okArr = TestCompositeToolCall.TryGetArgumentForTest<string>("{\"data\":[1,2,3]}", "data", out var valArr);
+            Assert.False(okArr);
+            Assert.Null(valArr);
+        }
+
+        [Fact]
+        public void IsPreApproved_DetectsPreApprovedAndIsApprovedFlags()
+        {
+            Assert.True(CompositeToolCallBase.IsPreApproved("{\"pre_approved\":true}"));
+            Assert.True(CompositeToolCallBase.IsPreApproved("{\"is_approved\":true}"));
+            Assert.False(CompositeToolCallBase.IsPreApproved("{\"pre_approved\":false}"));
+            Assert.False(CompositeToolCallBase.IsPreApproved("{}"));
+            Assert.False(CompositeToolCallBase.IsPreApproved((string?)null));
+        }
+
+        [Fact]
         public void TryGetArgumentOrError_Valid_Value_Returns_Ok()
         {
             var result = TestCompositeToolCall.TryGetArgumentOrErrorForTest<int>(

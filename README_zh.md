@@ -8,11 +8,11 @@
 <p>
   <a href="https://rimworldgame.com/"><img src="https://img.shields.io/badge/RimWorld-1.6-brightgreen.svg" alt="RimWorld 1.6"></a>
   <a href="https://github.com/mcocdaa/RimWorld-RimMind-Mod-Core"><img src="https://img.shields.io/badge/核心依赖-RimMind--Core-blue.svg" alt="依赖: RimMind-Core"></a>
-  <a href="#"><img src="https://img.shields.io/badge/单元测试-49%2B%20通过-success.svg" alt="单元测试"></a>
+  <a href="#"><img src="https://img.shields.io/badge/单元测试-93%2B%20通过-success.svg" alt="单元测试"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/开源协议-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
-<p><em>为 AI 殖民者赋予战地急救、濒死脱险与自主战术执行能力。</em></p>
+<p><em>为 AI 殖民者赋予战地急救、蓝图建造、农耕排程与自主战术执行能力。</em></p>
 
 </div>
 
@@ -20,12 +20,15 @@
 
 ## 📖 模块概览
 
-**RimMind-Actions** 负责将大语言模型产生的高级战术意图转化为稳健的多步骤游戏机制动作（**Mechanisms**）。在面临战地重伤失血、致命火灾或虫巢围困等突发险情时，殖民者能够自主发起复合救助，告别原地呆立。
+**RimMind-Actions** 负责将大语言模型产生的高级战术与建设意图转化为稳健的多步骤游戏机制动作（**Composite Mechanisms**）。无论是面临战地重伤失血、突发险情，还是执行房间建造与农耕生产，殖民者都能自主发起并持续轮询复合动作直至完工。
 
 ### 核心特性
-- **`StabilizeRestCompositeTool` 复合战地急救**：自主评估队友失血速率，火线就地包扎止血，扛起伤员转运至就近医疗床并下达静养指令。
-- **4 级安全门禁拦截器**：严格校验路径安全性、危险逼近距离、殖民者身体机能及玩家手动优先级，杜绝自杀式动作。
-- **灭火与安全避险**：实时感知爆炸半径与蔓延火势，自主寻找掩体脱离险境。
+- **10 大内置复合工具**：
+  - **生存与战地急救**：`actions.stabilize_rest`、`actions.emergency_flee`、`actions.eat_and_recreation`、`actions.triage_patient`
+  - **建筑与工程规划**：`actions.place_blueprint`、`actions.plan_room_project`、`actions.clear_area_for_build`
+  - **生产与农耕调度**：`actions.designated_harvest`、`actions.set_work_bill`、`actions.schedule_farming_cycle`
+- **`ContinuousJobPoller` 多阶段持续轮询**：全程跟踪多步作业生命周期（包括 `Blueprint_Build` 蓝图转化为 `Frame` 建造框架后的持续运料与施工），直至实体建筑落成或任务取消。
+- **`ActionPermissionGuard` 与 `ResourceSafetyGuard` 双重守卫**：严格校验殖民者存活在图且未倒地（`!Downed`）、工作类型能力、危险逼近距离与殖民地物资保底红线。
 
 ---
 
@@ -43,8 +46,8 @@
 ```mermaid
 flowchart LR
     Advisor["RimMind-Advisor / AI 规划器"] -->|发起高级意图| Actions["RimMind-Actions"]
-    Actions -->|4 级安全门禁校验| Gate{"环境与状态安全?"}
-    Gate -- 通过 --> Engine["Verse JobDriver / 派发实际动作"]
+    Actions -->|ActionPermissionGuard & ResourceSafetyGuard| Gate{"权限与资源安全?"}
+    Gate -- 通过 --> Poller["ContinuousJobPoller 持续轮询与施工"]
     Gate -- 驳回 --> Fallback["安全取消并记录原因"]
     Actions -->|通过公共 API 注册| Core["RimMind-Core 工具注册表"]
 ```

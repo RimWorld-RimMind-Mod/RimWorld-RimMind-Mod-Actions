@@ -57,6 +57,8 @@ namespace RimMind.Actions.Tests
             Assert.Contains("AgentIntentSession", source);
             Assert.Contains("StartIntentSession", source);
             Assert.Contains("PlaceBlueprintForBuild", source);
+            Assert.Contains("targetCells", source);
+            Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", source);
         }
     }
 }

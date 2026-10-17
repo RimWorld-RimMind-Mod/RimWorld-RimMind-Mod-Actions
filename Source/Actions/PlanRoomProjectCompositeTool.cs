@@ -66,7 +66,7 @@ namespace RimMind.Actions.Actions
                 ? AutonomyDomain.EmergencySurvival
                 : AutonomyDomain.BlueprintPlacement;
 
-            var permCheck = ActionPermissionGuard.CheckPermission(builderPawn, Id, roomAutonomyDomain);
+            var permCheck = ActionPermissionGuard.CheckPermission(builderPawn, Id, roomAutonomyDomain, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
@@ -215,6 +215,8 @@ namespace RimMind.Actions.Actions
                 if (comp != null)
                 {
                     var firstBp = placedBlueprints[0];
+                    Map projectMap = map;
+                    var targetCells = placedBlueprints.Select(b => b.Position).Distinct().ToList();
                     var session = new AgentIntentSession(
                         intentId: $"Project_Shelter_{bestRect.CenterCell.x}_{bestRect.CenterCell.z}",
                         startTick: Find.TickManager.TicksGame,
@@ -223,15 +225,51 @@ namespace RimMind.Actions.Actions
                         target: firstBp,
                         jobProvider: p =>
                         {
-                            var activeBp = placedBlueprints.FirstOrDefault(b => b != null && !b.Destroyed && b.Spawned);
-                            if (activeBp == null) return null;
+                            if (p == null || projectMap == null) return null;
                             if (p.workSettings != null && !p.workSettings.WorkIsActive(WorkTypeDefOf.Construction))
                             {
                                 p.workSettings.SetPriority(WorkTypeDefOf.Construction, 1);
                             }
-                            return JobMaker.MakeJob(JobDefOf.FinishFrame, activeBp);
+
+                            var deliverBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints")?.Worker as WorkGiver_Scanner
+                                ?? new WorkGiver_ConstructDeliverResourcesToBlueprints();
+                            var deliverFrameGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToFrames")?.Worker as WorkGiver_Scanner
+                                ?? new WorkGiver_ConstructDeliverResourcesToFrames();
+                            var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
+                                ?? new WorkGiver_ConstructFinishFrames();
+
+                            foreach (var bp in placedBlueprints)
+                            {
+                                if (bp == null || bp.Destroyed || !bp.Spawned) continue;
+                                if (!p.CanReserveAndReach(bp, PathEndMode.Touch, Danger.Some)) continue;
+
+                                var haulJob = deliverBpGiver.JobOnThing(p, bp, true);
+                                if (haulJob != null) return haulJob;
+
+                                var finishBpJob = finishGiver.JobOnThing(p, bp, true);
+                                if (finishBpJob != null) return finishBpJob;
+                            }
+
+                            foreach (var cell in targetCells)
+                            {
+                                if (!cell.InBounds(projectMap)) continue;
+                                var frame = cell.GetThingList(projectMap).OfType<Frame>().FirstOrDefault(f => !f.Destroyed && f.Spawned);
+                                if (frame == null || !p.CanReserveAndReach(frame, PathEndMode.Touch, Danger.Some)) continue;
+
+                                var deliverJob = deliverFrameGiver.JobOnThing(p, frame, true);
+                                if (deliverJob != null) return deliverJob;
+
+                                var finishJob = finishGiver.JobOnThing(p, frame, true);
+                                if (finishJob != null) return finishJob;
+                            }
+
+                            return null;
                         },
-                        completionPredicate: p => placedBlueprints.All(b => b == null || b.Destroyed || !b.Spawned));
+                        completionPredicate: p =>
+                            projectMap == null
+                            || (placedBlueprints.All(b => b == null || b.Destroyed || !b.Spawned)
+                                && !targetCells.Any(cell => cell.InBounds(projectMap)
+                                    && cell.GetThingList(projectMap).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned))));
 
                     comp.StartIntentSession(session);
                     sessionChained = true;

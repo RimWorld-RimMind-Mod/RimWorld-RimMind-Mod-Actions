@@ -8,11 +8,11 @@
 <p>
   <a href="https://rimworldgame.com/"><img src="https://img.shields.io/badge/RimWorld-1.6-brightgreen.svg" alt="RimWorld 1.6"></a>
   <a href="https://github.com/mcocdaa/RimWorld-RimMind-Mod-Core"><img src="https://img.shields.io/badge/Dependency-RimMind--Core-blue.svg" alt="Dependency: RimMind-Core"></a>
-  <a href="#"><img src="https://img.shields.io/badge/Unit%20Tests-49%2B%20Passing-success.svg" alt="Unit Tests"></a>
+  <a href="#"><img src="https://img.shields.io/badge/Unit%20Tests-93%2B%20Passing-success.svg" alt="Unit Tests"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
 </p>
 
-<p><em>Equip AI-driven colonists with battlefield triage, life-saving rescue, and tactical autonomy.</em></p>
+<p><em>Equip AI-driven colonists with battlefield triage, autonomous construction, farming, and tactical emergency mechanisms.</em></p>
 
 </div>
 
@@ -20,12 +20,15 @@
 
 ## 📖 Overview
 
-**RimMind-Actions** translates high-level AI tactical intents into robust, multi-step game actions called **Mechanisms**. When facing sudden crises—such as bleeding out under raid fire or suffocating in a burning room—colonists autonomously execute composite interventions rather than standing idly.
+**RimMind-Actions** translates high-level AI tactical and colony-building intents into robust, multi-step game actions called **Composite Mechanisms**. When facing sudden crises or executing long-running colony projects, colonists autonomously execute and poll composite workflows to completion.
 
 ### Key Highlights
-- **`StabilizeRestCompositeTool`**: Automatically assesses a wounded ally's bleeding rate, performs rapid field stabilization, carries them to the nearest available medical bed, and orders rest.
-- **4-Tier Safety Gate Interceptor**: Evaluates path safety, danger proximity, pawn physical capability, and player priority overrides before issuing Verse jobs.
-- **Fire & Refuge Evasion**: Pawns detect explosive radius dangers and pathfind away from infernos to safe designated rally zones.
+- **10 Built-in Composite Tools**:
+  - **Emergency & Survival**: `actions.stabilize_rest`, `actions.emergency_flee`, `actions.eat_and_recreation`, `actions.triage_patient`
+  - **Construction & Engineering**: `actions.place_blueprint`, `actions.plan_room_project`, `actions.clear_area_for_build`
+  - **Production & Agriculture**: `actions.designated_harvest`, `actions.set_work_bill`, `actions.schedule_farming_cycle`
+- **`ContinuousJobPoller` Multi-Stage Lifecycle**: Continuously drives multi-step jobs (including seamless `Blueprint_Build` -> `Frame` resource delivery and construction transitions) until every target structure is finished or canceled.
+- **`ActionPermissionGuard` & `ResourceSafetyGuard`**: Enforces active spawned non-downed colonist eligibility, work-type capability checks, danger proximity interception, and colony material reserve thresholds before issuing Verse jobs.
 
 ---
 
@@ -43,8 +46,8 @@
 ```mermaid
 flowchart LR
     Advisor["RimMind-Advisor / AI Planner"] -->|Issues Intent| Actions["RimMind-Actions"]
-    Actions -->|4-Tier Safety Gate Check| Gate{"Safe & Valid?"}
-    Gate -- Yes --> Engine["Verse JobDriver / Pawn Action"]
+    Actions -->|ActionPermissionGuard & ResourceSafetyGuard| Gate{"Safe & Valid?"}
+    Gate -- Yes --> Poller["ContinuousJobPoller & Verse JobDriver"]
     Gate -- No --> Fallback["Cancel with Trace Reason"]
     Actions -->|Registered via Public API| Core["RimMind-Core ToolRegistry"]
 ```
