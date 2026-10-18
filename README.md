@@ -35,7 +35,7 @@
 ## 🎮 In-Game Showcase
 
 ![RimMind-Actions Showcase](docs/images/showcase.jpg)
-*Battlefield emergency intervention in action: An AI-driven colonist rushes through smoke to bandage a fallen friend and carry them to safety.*
+*In-game Mechanisms Registry & Autonomous Execution: Inspecting all 10 registered mechanisms (`pawn.draft`, `pawn.job`, `pawn.thought`, `pawn.interaction`, `pawn.recruit`, `world.storyteller`, etc.) while colonists execute `place_blueprint(Bed, WoodLog)` beside the colony lodge.*
 
 ---
 
