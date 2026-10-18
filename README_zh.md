@@ -35,7 +35,7 @@
 ## 🎮 实机特性展示
 
 ![RimMind-Actions 实机展示](docs/images/showcase.jpg)
-*战地紧急施救实机场景：AI 殖民者冒着硝烟快速为倒地队友止血，并协作转运至医疗床。*
+*复合机制注册表与自主施工实机场景：在 F8 控制台检视全部 10 项已注册机制（`pawn.draft`、`pawn.job`、`pawn.thought` 等），同时殖民者在木制营房旁自主执行 `place_blueprint(Bed, WoodLog)` 蓝图建造任务。*
 
 ---
 
