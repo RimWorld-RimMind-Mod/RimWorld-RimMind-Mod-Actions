@@ -27,20 +27,7 @@ namespace RimMind.Actions.Policies
         }
 
         public static string TranslateOrFallback(string key, string fallbackEn, params object[] args)
-        {
-            try
-            {
-                if (!string.IsNullOrEmpty(key) && key.CanTranslate())
-                {
-                    string template = key.TranslateSimple();
-                    return args != null && args.Length > 0 ? string.Format(template, args) : template;
-                }
-            }
-            catch
-            {
-            }
-            return args != null && args.Length > 0 ? string.Format(fallbackEn, args) : fallbackEn;
-        }
+            => ResourceSafetyPolicy.TranslateOrFallback(key, fallbackEn, args);
 
         public static Result<Unit, RimMindError> CheckPermission(
             Pawn? pawn,
@@ -94,6 +81,74 @@ namespace RimMind.Actions.Policies
         }
 
         /// <summary>
+        /// Result of <see cref="ResolveActorAndMap"/>: the acting colonist (may be null when no id was supplied
+        /// and no fallback colonist exists), the map the action must run on, and an error when a pawn id was
+        /// supplied but does not refer to an active, standing colonist.
+        /// </summary>
+        public readonly struct ActorResolution
+        {
+            public ActorResolution(Pawn? pawn, Map? map, string? error)
+            {
+                Pawn = pawn;
+                Map = map;
+                Error = error;
+            }
+
+            public Pawn? Pawn { get; }
+            public Map? Map { get; }
+            public string? Error { get; }
+        }
+
+        /// <summary>
+        /// Resolves the acting colonist across all maps and returns <em>that colonist's</em> map, so actions never
+        /// land on whatever map the player happens to be viewing. Lookup order: <paramref name="pawnIdKey"/>
+        /// argument, <see cref="ToolCallArgs.PawnId"/>, <see cref="ToolCallArgs.NpcId"/>.
+        /// If any id is supplied but none resolves to an active standing colonist, an error is returned instead
+        /// of silently substituting another colonist. Only when no id is supplied at all does it fall back to
+        /// <see cref="Find.CurrentMap"/> (and optionally any active colonist on it).
+        /// </summary>
+        public static ActorResolution ResolveActorAndMap(
+            ToolCallArgs args,
+            string pawnIdKey = "pawn_id",
+            bool fallbackToAnyActiveColonist = false)
+        {
+            bool anyIdSupplied = false;
+
+            Pawn? TryResolve(int id)
+            {
+                if (id <= 0) return null;
+                anyIdSupplied = true;
+                var p = RimMindPawnLookup.FindPawnByNumber(id);
+                return p != null && RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed ? p : null;
+            }
+
+            Pawn? actor = null;
+            if (CompositeToolCallBase.TryGetArgument<int>(args.ArgumentsJson, pawnIdKey, out int argPawnId))
+                actor = TryResolve(argPawnId);
+            if (actor == null && args.PawnId.HasValue)
+                actor = TryResolve(args.PawnId.Value);
+            if (actor == null && CompositeToolCallBase.TryParsePawnIdString(args.NpcId, out int npcPawnId))
+                actor = TryResolve(npcPawnId);
+
+            if (actor != null)
+                return new ActorResolution(actor, actor.Map, null);
+
+            if (anyIdSupplied)
+            {
+                return new ActorResolution(null, null,
+                    TranslateOrFallback(
+                        "RimMind.Actions.Permission.InvalidColonist",
+                        "Requested colonist is not an active, standing colonist on any map (dead, downed, off-map, prisoner or not a colonist)."));
+            }
+
+            var map = Find.CurrentMap;
+            return new ActorResolution(
+                fallbackToAnyActiveColonist ? ResolveColonistOnMap(map, args, pawnIdKey, true) : null,
+                map,
+                null);
+        }
+
+        /// <summary>
         /// Resolves an active spawned colonist on the given map from <paramref name="pawnIdKey"/> argument,
         /// <see cref="ToolCallArgs.PawnId"/>, or <see cref="ToolCallArgs.NpcId"/>, with optional fallback
         /// to any standing active colonist on the map.
@@ -104,14 +159,16 @@ namespace RimMind.Actions.Policies
             string pawnIdKey = "pawn_id",
             bool fallbackToAnyActiveColonist = false)
         {
-            if (map?.mapPawns?.FreeColonistsSpawned == null)
+            var spawnedColonists = RimMindPawnLookup.GetSpawnedColonistsSafe(map);
+            if (spawnedColonists.Count == 0)
                 return null;
 
             Pawn? FindActiveColonistById(int id)
             {
                 if (id <= 0) return null;
-                foreach (var p in map.mapPawns.FreeColonistsSpawned)
+                for (int i = 0; i < spawnedColonists.Count; i++)
                 {
+                    var p = spawnedColonists[i];
                     if (p != null && p.thingIDNumber == id && RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
                         return p;
                 }
@@ -138,8 +195,9 @@ namespace RimMind.Actions.Policies
 
             if (fallbackToAnyActiveColonist)
             {
-                foreach (var p in map.mapPawns.FreeColonistsSpawned)
+                for (int i = 0; i < spawnedColonists.Count; i++)
                 {
+                    var p = spawnedColonists[i];
                     if (RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
                         return p;
                 }

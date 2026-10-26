@@ -1,6 +1,9 @@
 using System;
 using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
+#if !RIMMIND_ACTIONS_TESTS
+using Verse;
+#endif
 
 namespace RimMind.Actions.Policies
 {
@@ -13,6 +16,24 @@ namespace RimMind.Actions.Policies
         public const int MinSteelReserve = 50;
         public const int MaxConcurrentBlueprints = 2;
 
+        public static string TranslateOrFallback(string key, string fallbackEn, params object[] args)
+        {
+#if !RIMMIND_ACTIONS_TESTS
+            try
+            {
+                if (!string.IsNullOrEmpty(key) && key.CanTranslate())
+                {
+                    string template = key.TranslateSimple();
+                    return args != null && args.Length > 0 ? string.Format(template, args) : template;
+                }
+            }
+            catch
+            {
+            }
+#endif
+            return args != null && args.Length > 0 ? string.Format(fallbackEn, args) : fallbackEn;
+        }
+
         /// <summary>
         /// Pure evaluation of resource reserves against material requirements.
         /// </summary>
@@ -24,7 +45,11 @@ namespace RimMind.Actions.Policies
                 {
                     return Result<Unit, RimMindError>.Err(
                         RimMindErrors.InvalidAction("resource_safety",
-                            $"[熔断拦截] 营地木材仅存 {availableWood}，已触发最低生存储备防线 (保留值: {MinWoodReserve})，禁止消耗建材！"));
+                            TranslateOrFallback(
+                                "RimMind.Actions.Safety.WoodReserve",
+                                "[Safety Guard] Colony wood reserve is only {0}, below minimum survival threshold (reserve: {1}); construction material consumption blocked!",
+                                availableWood,
+                                MinWoodReserve)));
                 }
             }
 
@@ -34,7 +59,11 @@ namespace RimMind.Actions.Policies
                 {
                     return Result<Unit, RimMindError>.Err(
                         RimMindErrors.InvalidAction("resource_safety",
-                            $"[熔断拦截] 营地钢铁仅存 {availableSteel}，已触发最低生存储备防线 (保留值: {MinSteelReserve})，禁止消耗建材！"));
+                            TranslateOrFallback(
+                                "RimMind.Actions.Safety.SteelReserve",
+                                "[Safety Guard] Colony steel reserve is only {0}, below minimum survival threshold (reserve: {1}); construction material consumption blocked!",
+                                availableSteel,
+                                MinSteelReserve)));
                 }
             }
 
@@ -50,7 +79,11 @@ namespace RimMind.Actions.Policies
             {
                 return Result<Unit, RimMindError>.Err(
                     RimMindErrors.InvalidAction("resource_safety",
-                        $"[熔断拦截] 当前营地已有 {activeBlueprintCount} 个进行中的建造蓝图，已达并发上限 ({MaxConcurrentBlueprints})，禁止开工新工程！"));
+                        TranslateOrFallback(
+                            "RimMind.Actions.Safety.BlueprintCap",
+                            "[Safety Guard] Colony already has {0} active construction blueprints, reaching concurrency limit ({1}); new projects blocked!",
+                            activeBlueprintCount,
+                            MaxConcurrentBlueprints)));
             }
 
             return Result<Unit, RimMindError>.Ok(Unit.Value);

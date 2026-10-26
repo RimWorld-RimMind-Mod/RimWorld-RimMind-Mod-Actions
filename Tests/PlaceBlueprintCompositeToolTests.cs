@@ -47,7 +47,8 @@ namespace RimMind.Actions.Tests
         public void PlaceBlueprint_Integrates_AgentIntentSession_Chaining()
         {
             var source = ReadActionsSource(Path.Combine("Actions", "PlaceBlueprintCompositeTool.cs"));
-            Assert.Contains("AgentIntentSession", source);
+            Assert.Contains("RimMindAPI.Agent.StartIntentSession", source);
+            Assert.DoesNotContain("using RimMind.Infrastructure", source);
             Assert.Contains("IssueConstructionSubJob(p, map, blueprint, targetCell)", source);
             Assert.Contains("targetCell.GetThingList(map).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned)", source);
             Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", source);

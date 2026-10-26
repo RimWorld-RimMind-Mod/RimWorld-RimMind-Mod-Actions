@@ -21,7 +21,7 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_manage_equipment";
 
-        public override ToolDefinition Definition => new ToolDefinition
+        protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
             Category = "action",
@@ -35,7 +35,14 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var map = Find.CurrentMap;
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            if (actorResolution.Error != null)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
+            }
+
+            var map = actorResolution.Map;
             if (map == null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -43,7 +50,7 @@ namespace RimMind.Actions.Actions
             }
 
             // 1. Resolve Colonist Pawn & Autonomy Guard
-            Pawn? pawn = ActionPermissionGuard.ResolveColonistOnMap(map, args, "pawn_id", fallbackToAnyActiveColonist: true);
+            Pawn? pawn = actorResolution.Pawn;
 
             if (pawn == null)
             {

@@ -68,7 +68,8 @@ namespace RimMind.Actions.Tests
             var parsed = JObject.Parse(result.Value.Content);
             Assert.True((bool)parsed["interruptJob"]!["ok"]!);
             Assert.True((bool)parsed["rechargeRest"]!["ok"]!);
-            Assert.True((bool)parsed["applyRelief"]!["ok"]!);
+            Assert.Null(parsed["applyRelief"]);
+            Assert.Null(thought.ReceivedArgs); // no Catharsis mood buff injection
         }
 
         [Fact]
@@ -78,7 +79,7 @@ namespace RimMind.Actions.Tests
             Assert.Equal("actions.eat_and_recreation", tool.Id);
             Assert.Equal("composite", tool.Definition.Category);
             Assert.Contains("pawn.job.set", tool.RequiredToolIds);
-            Assert.Contains("pawn.thought.add", tool.RequiredToolIds);
+            Assert.DoesNotContain("pawn.thought.add", tool.RequiredToolIds);
         }
     }
 }

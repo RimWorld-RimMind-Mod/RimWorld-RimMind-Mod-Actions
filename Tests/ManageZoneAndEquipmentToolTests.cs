@@ -51,6 +51,8 @@ namespace RimMind.Actions.Tests
             Assert.Contains("Zone_Stockpile", source);
             Assert.Contains("RegisterZone", source);
             Assert.Contains("AddCell", source);
+            Assert.Contains("GenRadial.RadialCellsAround(origin, 25f, true)", source);
+            Assert.DoesNotContain("for (int r = 0; r <= 25; r += 2)", source);
         }
 
         [Fact]

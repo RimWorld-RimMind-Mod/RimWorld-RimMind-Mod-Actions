@@ -6,6 +6,7 @@
   <modVersion>2.0.0</modVersion>
   <supportedVersions>
     <li>1.6</li>
+    <li>1.7</li>
   </supportedVersions>
   <description>Composite ToolCall orchestration layer. Combines atomic ToolCalls from Core into high-level actions (e.g., stabilize_rest: undraft then force_rest). Registered via reflection. [v2.0]</description>
   <modDependencies>

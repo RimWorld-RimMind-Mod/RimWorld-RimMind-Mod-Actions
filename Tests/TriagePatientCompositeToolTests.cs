@@ -69,7 +69,8 @@ namespace RimMind.Actions.Tests
             var parsed = JObject.Parse(result.Value.Content);
             Assert.True((bool)parsed["patientBedRest"]!["ok"]!);
             Assert.True((bool)parsed["doctorTriageReady"]!["ok"]!);
-            Assert.True((bool)parsed["stabilizeShock"]!["ok"]!);
+            Assert.Null(parsed["stabilizeShock"]);
+            Assert.Null(thought.ReceivedArgs); // no Catharsis mood buff injection
         }
 
         [Fact]
@@ -96,7 +97,39 @@ namespace RimMind.Actions.Tests
             Assert.True(result.IsOk);
             var parsed = JObject.Parse(result.Value.Content);
             Assert.True((bool)parsed["patientBedRest"]!["ok"]!);
-            Assert.True((bool)parsed["stabilizeShock"]!["ok"]!);
+            Assert.Null(parsed["stabilizeShock"]);
+            Assert.Null(thought.ReceivedArgs); // no Catharsis mood buff injection
+        }
+
+        [Fact]
+        public async Task ExecuteAsync_IneligibleDoctor_IsRejected_BeforeAnyAtomicCall()
+        {
+            var registry = new FakeToolRegistry();
+            var job = new RecordingHandler("pawn.job.set", ToolResult.Ok("ok"));
+            registry.Register(job);
+            RimMindAPI.Tools = registry;
+            CompositeToolCallBase.TestColonistGuard = (id, _, _) => id == 12
+                ? Result<RimMind.Domain.Common.Unit, RimMindError>.Err(new RimMindError(RimMindErrorCode.MechanismInvalidAction, "doctor_id 12 is not an active spawned colonist"))
+                : Result<RimMind.Domain.Common.Unit, RimMindError>.Ok(RimMind.Domain.Common.Unit.Value);
+            try
+            {
+                var result = await new TriagePatientCompositeTool().ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "parent-triage-guard",
+                        ToolName = "actions.triage_patient",
+                        ArgumentsJson = "{\"patient_id\":55,\"doctor_id\":12}"
+                    },
+                    CancellationToken.None);
+
+                Assert.True(result.IsErr);
+                Assert.Contains("doctor_id 12", result.Error.Message);
+                Assert.Null(job.ReceivedArgs); // patient must not be ordered to rest either
+            }
+            finally
+            {
+                CompositeToolCallBase.TestColonistGuard = null;
+            }
         }
 
         [Fact]
@@ -106,7 +139,7 @@ namespace RimMind.Actions.Tests
             Assert.Equal("actions.triage_patient", tool.Id);
             Assert.Equal("composite", tool.Definition.Category);
             Assert.Contains("pawn.job.set", tool.RequiredToolIds);
-            Assert.Contains("pawn.thought.add", tool.RequiredToolIds);
+            Assert.DoesNotContain("pawn.thought.add", tool.RequiredToolIds);
         }
     }
 }

@@ -8,7 +8,7 @@ using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.ValueObjects;
-using RimMind.Infrastructure.Verse;
+using RimMind.Presentation.Api;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -24,7 +24,7 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_plan_room_project";
 
-        public override ToolDefinition Definition => new ToolDefinition
+        protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
             Category = "action",
@@ -38,7 +38,14 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var map = Find.CurrentMap;
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: false);
+            if (actorResolution.Error != null)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
+            }
+
+            var map = actorResolution.Map;
             if (map == null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -46,11 +53,11 @@ namespace RimMind.Actions.Actions
             }
 
             // 1. Resolve Builder Colonist
-            Pawn? builderPawn = ActionPermissionGuard.ResolveColonistOnMap(map, args, "pawn_id", fallbackToAnyActiveColonist: false);
-            if (builderPawn == null && map.mapPawns?.FreeColonistsSpawned != null)
+            Pawn? builderPawn = actorResolution.Pawn;
+            if (builderPawn == null)
             {
                 // Pick active colonist with highest construction skill
-                builderPawn = map.mapPawns.FreeColonistsSpawned
+                builderPawn = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map)
                     .Where(p => RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
                     .OrderByDescending(p => p.skills?.GetSkill(SkillDefOf.Construction)?.Level ?? 0)
                     .FirstOrDefault();
@@ -73,7 +80,6 @@ namespace RimMind.Actions.Actions
             }
 
             // 3. Resolve Size and Materials
-
             TryGetArgument<int>(args.ArgumentsJson, "size", out var size);
             if (size <= 0) size = 5;
             size = Math.Clamp(size, 4, 9);
@@ -98,55 +104,13 @@ namespace RimMind.Actions.Actions
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(safetyCheck.Error));
             }
 
-            // 5. Search for Clear Square Region
-            IntVec3 origin = builderPawn?.Position ?? map.Center;
+            // 5. Search for Clear Square Region (fallback from builder position to map.Center)
+            IntVec3 origin = (builderPawn != null && builderPawn.Position.InHorDistOf(map.Center, 28f)) ? builderPawn.Position : map.Center;
             CellRect bestRect = default;
-            bool foundValidSpot = false;
-
-            for (int r = 4; r <= 30; r += 2)
+            bool foundValidSpot = TryFindClearRoomRect(map, origin, size, selectedStuff, out bestRect);
+            if (!foundValidSpot && origin != map.Center)
             {
-                foreach (var offset in GenRadial.RadialCellsAround(origin, r, true))
-                {
-                    var testRect = new CellRect(offset.x, offset.z, size, size);
-                    if (!testRect.FullyContainedWithin(new CellRect(0, 0, map.Size.x, map.Size.z))) continue;
-
-                    bool valid = true;
-                    foreach (var cell in testRect)
-                    {
-                        if (cell.Fogged(map)) { valid = false; break; }
-                        if (!cell.Standable(map) && cell.GetEdifice(map) != null) { valid = false; break; }
-
-                        var things = map.thingGrid.ThingsListAt(cell);
-                        if (things != null && things.Any(t => t.def.passability == Traversability.Impassable))
-                        {
-                            valid = false;
-                            break;
-                        }
-
-                        // Avoid placing over water or unbuildable terrain
-                        var terrain = cell.GetTerrain(map);
-                        if (terrain != null && terrain.IsWater)
-                        {
-                            valid = false;
-                            break;
-                        }
-
-                        var acceptance = GenConstruct.CanPlaceBlueprintAt(ThingDefOf.Wall, cell, Rot4.North, map, false, null, null, selectedStuff);
-                        if (!acceptance.Accepted)
-                        {
-                            valid = false;
-                            break;
-                        }
-                    }
-
-                    if (valid)
-                    {
-                        bestRect = testRect;
-                        foundValidSpot = true;
-                        break;
-                    }
-                }
-                if (foundValidSpot) break;
+                foundValidSpot = TryFindClearRoomRect(map, map.Center, size, selectedStuff, out bestRect);
             }
 
             if (!foundValidSpot)
@@ -211,69 +175,65 @@ namespace RimMind.Actions.Actions
 
             if (builderPawn != null && placedBlueprints.Count > 0)
             {
-                var comp = builderPawn.TryGetComp<CompPawnAgent>();
-                if (comp != null)
-                {
-                    var firstBp = placedBlueprints[0];
-                    Map projectMap = map;
-                    var targetCells = placedBlueprints.Select(b => b.Position).Distinct().ToList();
-                    var session = new AgentIntentSession(
-                        intentId: $"Project_Shelter_{bestRect.CenterCell.x}_{bestRect.CenterCell.z}",
-                        startTick: Find.TickManager.TicksGame,
-                        durationTicks: 5000,
-                        priority: 7.8f,
-                        target: firstBp,
-                        jobProvider: p =>
+                var firstBp = placedBlueprints[0];
+                Map projectMap = map;
+                var targetCells = placedBlueprints.Select(b => b.Position).Distinct().ToList();
+                sessionChained = RimMindAPI.Agent.StartIntentSession(
+                    pawn: builderPawn,
+                    intentId: $"Project_Shelter_{bestRect.CenterCell.x}_{bestRect.CenterCell.z}",
+                    startTick: Find.TickManager?.TicksGame ?? 0,
+                    durationTicks: 5000,
+                    priority: 7.8f,
+                    target: firstBp,
+                    jobProvider: p =>
+                    {
+                        if (p == null || projectMap == null) return null;
+                        // Respect the player's work tab: never rewrite priorities.
+                        if (p.WorkTypeIsDisabled(WorkTypeDefOf.Construction)
+                            || (p.workSettings != null && !p.workSettings.WorkIsActive(WorkTypeDefOf.Construction)))
                         {
-                            if (p == null || projectMap == null) return null;
-                            if (p.workSettings != null && !p.workSettings.WorkIsActive(WorkTypeDefOf.Construction))
-                            {
-                                p.workSettings.SetPriority(WorkTypeDefOf.Construction, 1);
-                            }
-
-                            var deliverBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints")?.Worker as WorkGiver_Scanner
-                                ?? new WorkGiver_ConstructDeliverResourcesToBlueprints();
-                            var deliverFrameGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToFrames")?.Worker as WorkGiver_Scanner
-                                ?? new WorkGiver_ConstructDeliverResourcesToFrames();
-                            var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
-                                ?? new WorkGiver_ConstructFinishFrames();
-
-                            foreach (var bp in placedBlueprints)
-                            {
-                                if (bp == null || bp.Destroyed || !bp.Spawned) continue;
-                                if (!p.CanReserveAndReach(bp, PathEndMode.Touch, Danger.Some)) continue;
-
-                                var haulJob = deliverBpGiver.JobOnThing(p, bp, true);
-                                if (haulJob != null) return haulJob;
-
-                                var finishBpJob = finishGiver.JobOnThing(p, bp, true);
-                                if (finishBpJob != null) return finishBpJob;
-                            }
-
-                            foreach (var cell in targetCells)
-                            {
-                                if (!cell.InBounds(projectMap)) continue;
-                                var frame = cell.GetThingList(projectMap).OfType<Frame>().FirstOrDefault(f => !f.Destroyed && f.Spawned);
-                                if (frame == null || !p.CanReserveAndReach(frame, PathEndMode.Touch, Danger.Some)) continue;
-
-                                var deliverJob = deliverFrameGiver.JobOnThing(p, frame, true);
-                                if (deliverJob != null) return deliverJob;
-
-                                var finishJob = finishGiver.JobOnThing(p, frame, true);
-                                if (finishJob != null) return finishJob;
-                            }
-
                             return null;
-                        },
-                        completionPredicate: p =>
-                            projectMap == null
-                            || (placedBlueprints.All(b => b == null || b.Destroyed || !b.Spawned)
-                                && !targetCells.Any(cell => cell.InBounds(projectMap)
-                                    && cell.GetThingList(projectMap).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned))));
+                        }
 
-                    comp.StartIntentSession(session);
-                    sessionChained = true;
-                }
+                        var deliverBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints")?.Worker as WorkGiver_Scanner
+                            ?? new WorkGiver_ConstructDeliverResourcesToBlueprints();
+                        var deliverFrameGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToFrames")?.Worker as WorkGiver_Scanner
+                            ?? new WorkGiver_ConstructDeliverResourcesToFrames();
+                        var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
+                            ?? new WorkGiver_ConstructFinishFrames();
+
+                        foreach (var bp in placedBlueprints)
+                        {
+                            if (bp == null || bp.Destroyed || !bp.Spawned) continue;
+                            if (!p.CanReserveAndReach(bp, PathEndMode.Touch, Danger.Some)) continue;
+
+                            var haulJob = deliverBpGiver.JobOnThing(p, bp, true);
+                            if (haulJob != null) return haulJob;
+
+                            var finishBpJob = finishGiver.JobOnThing(p, bp, true);
+                            if (finishBpJob != null) return finishBpJob;
+                        }
+
+                        foreach (var cell in targetCells)
+                        {
+                            if (!cell.InBounds(projectMap)) continue;
+                            var frame = cell.GetThingList(projectMap).OfType<Frame>().FirstOrDefault(f => !f.Destroyed && f.Spawned);
+                            if (frame == null || !p.CanReserveAndReach(frame, PathEndMode.Touch, Danger.Some)) continue;
+
+                            var deliverJob = deliverFrameGiver.JobOnThing(p, frame, true);
+                            if (deliverJob != null) return deliverJob;
+
+                            var finishJob = finishGiver.JobOnThing(p, frame, true);
+                            if (finishJob != null) return finishJob;
+                        }
+
+                        return null;
+                    },
+                    completionPredicate: p =>
+                        projectMap == null
+                        || (placedBlueprints.All(b => b == null || b.Destroyed || !b.Spawned)
+                            && !targetCells.Any(cell => cell.InBounds(projectMap)
+                                && cell.GetThingList(projectMap).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned))));
             }
 
             string planMsg = ActionPermissionGuard.TranslateOrFallback(
@@ -293,6 +253,51 @@ namespace RimMind.Actions.Actions
                     planMsg,
                     args.ToolCallId,
                     Id)));
+        }
+
+        private static bool TryFindClearRoomRect(Map map, IntVec3 origin, int size, ThingDef? selectedStuff, out CellRect bestRect)
+        {
+            bestRect = default;
+            foreach (var offset in GenRadial.RadialCellsAround(origin, 30f, true))
+            {
+                var testRect = new CellRect(offset.x, offset.z, size, size);
+                if (!testRect.FullyContainedWithin(new CellRect(0, 0, map.Size.x, map.Size.z))) continue;
+
+                bool valid = true;
+                foreach (var cell in testRect)
+                {
+                    if (cell.Fogged(map)) { valid = false; break; }
+                    if (!cell.Standable(map) && cell.GetEdifice(map) != null) { valid = false; break; }
+
+                    var things = map.thingGrid.ThingsListAt(cell);
+                    if (things != null && things.Any(t => t.def.passability == Traversability.Impassable))
+                    {
+                        valid = false;
+                        break;
+                    }
+
+                    var terrain = cell.GetTerrain(map);
+                    if (terrain != null && terrain.IsWater)
+                    {
+                        valid = false;
+                        break;
+                    }
+
+                    var acceptance = GenConstruct.CanPlaceBlueprintAt(ThingDefOf.Wall, cell, Rot4.North, map, false, null, null, selectedStuff);
+                    if (!acceptance.Accepted)
+                    {
+                        valid = false;
+                        break;
+                    }
+                }
+
+                if (valid)
+                {
+                    bestRect = testRect;
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

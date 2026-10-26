@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.ValueObjects;
 
 namespace RimMind.Actions.Actions
@@ -10,7 +11,13 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions.stabilize_rest";
 
-        public override ToolDefinition Definition => new ToolDefinition
+        private static readonly string[] RequiredTools = new[]
+        {
+            "pawn.draft.toggle",
+            "pawn.job.set"
+        };
+
+        protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
             Category = "composite",
@@ -19,11 +26,7 @@ namespace RimMind.Actions.Actions
                 "{\"type\":\"object\",\"properties\":{\"pawn_id\":{\"type\":\"integer\"},\"reason\":{\"type\":\"string\"}},\"required\":[\"pawn_id\"]}"
         };
 
-        public override IReadOnlyList<string> RequiredToolIds => new[]
-        {
-            "pawn.draft.toggle",
-            "pawn.job.set"
-        };
+        public override IReadOnlyList<string> RequiredToolIds => RequiredTools;
 
         public override async Task<Result<ToolResult, RimMindError>> ExecuteAsync(
             ToolCallArgs args,
@@ -35,6 +38,12 @@ namespace RimMind.Actions.Actions
                 return Result<ToolResult, RimMindError>.Err(pawnIdResult.Error);
             }
             int pawnId = pawnIdResult.Value;
+
+            var guard = GuardColonistTarget(pawnId, AutonomyDomain.EmergencySurvival, args);
+            if (guard.IsErr)
+            {
+                return Result<ToolResult, RimMindError>.Err(guard.Error);
+            }
 
             var undraftArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "undraft"));
             var restArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "force_rest"));
