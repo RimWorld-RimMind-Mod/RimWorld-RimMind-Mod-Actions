@@ -3,6 +3,7 @@
   <RimMind.Actions.SettingsTitle>RimMind - 动作</RimMind.Actions.SettingsTitle>
   <RimMind.Actions.Permission.Disabled>[权限拦截] 领袖已禁用当前小人在领域 ({0}) 的自主决策权限。</RimMind.Actions.Permission.Disabled>
   <RimMind.Actions.Permission.RequireApproval>[需要审批] 当前操作 ({0}) 需要领袖批准后方可执行。</RimMind.Actions.Permission.RequireApproval>
+  <RimMind.Actions.Permission.InvalidColonist>目标殖民者不是任何地图上活跃且未倒地的殖民者（已死亡、倒地、离图、囚犯或非殖民者）。</RimMind.Actions.Permission.InvalidColonist>
   <RimMind.Actions.Safety.WoodReserve>[熔断拦截] 营地木材仅存 {0}，已触发最低生存储备防线 (保留值: {1})，禁止消耗建材！</RimMind.Actions.Safety.WoodReserve>
   <RimMind.Actions.Safety.SteelReserve>[熔断拦截] 营地钢铁仅存 {0}，已触发最低生存储备防线 (保留值: {1})，禁止消耗建材！</RimMind.Actions.Safety.SteelReserve>
   <RimMind.Actions.Safety.BlueprintCap>[熔断拦截] 当前营地已有 {0} 个进行中的建造蓝图，已达并发上限 ({1})，禁止开工新工程！</RimMind.Actions.Safety.BlueprintCap>
@@ -18,4 +19,11 @@
   <RimMind.Actions.Room.SiteSelectionFailed>[选址失败] 在领地附近未找到能够容纳 {0}x{0} 建筑物的开阔坚固平整地块。</RimMind.Actions.Room.SiteSelectionFailed>
   <RimMind.Actions.Room.PlanSuccess>成功规划并在中心 ({0}, {1}) 放置 {2} 个微型房间蓝图 ({3}x{3} 木墙/门/床/光源)。</RimMind.Actions.Room.PlanSuccess>
   <RimMind.Actions.Room.LeaseChained> 已为建造主力 {0} 挂接复合工程连续施工租约。</RimMind.Actions.Room.LeaseChained>
+  <RimMind.Actions.Blueprint.DefaultMaterials>默认材料</RimMind.Actions.Blueprint.DefaultMaterials>
+  <RimMind.Actions.Blueprint.PlaceSuccess>成功在 ({1}, {2}) 放置 {0} 蓝图（材料：{3}）。</RimMind.Actions.Blueprint.PlaceSuccess>
+  <RimMind.Actions.Blueprint.IntentChained> 已为建造者 {0} 挂接高优先级 (7.8f) 施工意图租约。</RimMind.Actions.Blueprint.IntentChained>
+  <RimMind.Actions.Designate.NoNewTargets>在 ({1}, {2}) 附近未发现新的未标记“{0}”目标（当前已有生效标记：{3}）。</RimMind.Actions.Designate.NoNewTargets>
+  <RimMind.Actions.Designate.NoTargetsInRadius>在 ({2}, {3}) 周围 {1} 格范围内未发现未标记的“{0}”目标。</RimMind.Actions.Designate.NoTargetsInRadius>
+  <RimMind.Actions.Designate.DesignateSuccess>成功标记 {0} 个“{1}”目标（{2}），殖民者将按工作优先级执行。</RimMind.Actions.Designate.DesignateSuccess>
+  <RimMind.Actions.Bill.AddSuccess>成功在“{1}”上添加清单“{0}”{2}（{3}）。</RimMind.Actions.Bill.AddSuccess>
 </LanguageData>

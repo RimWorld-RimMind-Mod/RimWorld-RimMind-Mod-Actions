@@ -16,9 +16,13 @@ namespace RimMind.Actions.Actions
     {
         public abstract string Id { get; }
 
+        private ToolDefinition? _cachedDefinition;
+
         public virtual string OwnerModId => "RimMindActions";
 
-        public abstract ToolDefinition Definition { get; }
+        public virtual ToolDefinition Definition => _cachedDefinition ??= BuildDefinition();
+
+        protected virtual ToolDefinition BuildDefinition() => new ToolDefinition { Id = Id };
 
         public abstract IReadOnlyList<string> RequiredToolIds { get; }
 
@@ -60,10 +64,11 @@ namespace RimMind.Actions.Actions
                 PawnId = parentArgs.PawnId,
                 NpcId = parentArgs.NpcId,
                 TraceId = parentArgs.TraceId,
-                Ct = ct
+                Ct = ct,
+                IsPlayerApproved = parentArgs.IsPlayerApproved
             };
 
-            var result = await handler.ExecuteAsync(childArgs, ct).ConfigureAwait(false);
+            var result = await handler.ExecuteAsync(childArgs, ct);
             return result.IsOk
                 ? result.Value with { ToolCallId = childCallId, ToolName = toolId }
                 : ToolResult.Fail($"[{result.Error.Code}] {result.Error.Message}", childCallId, toolId);
@@ -89,21 +94,44 @@ namespace RimMind.Actions.Actions
         }
 
         /// <summary>
-        /// Checks if the tool call arguments specify pre-approval (e.g. from an advisor card approval).
+        /// Checks whether trusted host code (e.g. an advisor approval card the player clicked) approved this call.
+        /// Approval is read only from <see cref="ToolCallArgs.IsPlayerApproved"/>; LLM-supplied JSON fields such as
+        /// "pre_approved" / "is_approved" are deliberately ignored so a model cannot approve its own actions.
         /// </summary>
-        public static bool IsPreApproved(ToolCallArgs args) => IsPreApproved(args.ArgumentsJson);
+        public static bool IsPreApproved(ToolCallArgs args) => args != null && args.IsPlayerApproved;
+
+#if RIMMIND_ACTIONS_TESTS
+        /// <summary>Test hook replacing the Verse-backed colonist target guard.</summary>
+        internal static Func<int, RimMind.Domain.Agent.Policies.AutonomyDomain, ToolCallArgs, Result<Unit, RimMindError>>? TestColonistGuard;
+#endif
 
         /// <summary>
-        /// Checks if the tool call JSON arguments specify pre-approval (e.g. "pre_approved": true or "is_approved": true).
+        /// Verifies that <paramref name="pawnId"/> is an active spawned player colonist (not dead, off-map,
+        /// kidnapped, prisoner, slave, guest or hostile) and that the autonomy domain allows the action.
+        /// Must be called before any atomic call that targets an LLM-supplied pawn id.
         /// </summary>
-        public static bool IsPreApproved(string? argumentsJson)
+        protected Result<Unit, RimMindError> GuardColonistTarget(
+            int pawnId,
+            RimMind.Domain.Agent.Policies.AutonomyDomain domain,
+            ToolCallArgs args,
+            string argumentKey = "pawn_id")
         {
-            if (string.IsNullOrWhiteSpace(argumentsJson)) return false;
-            if (TryGetArgument<bool>(argumentsJson!, "pre_approved", out bool preApproved) && preApproved)
-                return true;
-            if (TryGetArgument<bool>(argumentsJson!, "is_approved", out bool isApproved) && isApproved)
-                return true;
-            return false;
+#if RIMMIND_ACTIONS_TESTS
+            return TestColonistGuard?.Invoke(pawnId, domain, args) ?? Result<Unit, RimMindError>.Ok(Unit.Value);
+#else
+            var pawn = RimMindPawnLookup.FindPawnByNumber(pawnId);
+            if (pawn == null || !RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
+            {
+                return Result<Unit, RimMindError>.Err(
+                    new RimMindError(
+                        RimMindErrorCode.MechanismInvalidAction,
+                        $"{argumentKey} {pawnId} is not an active spawned colonist")
+                    {
+                        TraceId = args.TraceId
+                    });
+            }
+            return CheckPermission(pawn, domain, args);
+#endif
         }
 
         /// <summary>

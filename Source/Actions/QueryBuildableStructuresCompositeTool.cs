@@ -19,7 +19,7 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_query_buildable_structures";
 
-        public override ToolDefinition Definition => new ToolDefinition
+        protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
             Category = "query",
@@ -36,7 +36,8 @@ namespace RimMind.Actions.Actions
             TryGetArgument<string>(args.ArgumentsJson, "category", out var categoryFilter);
             categoryFilter = string.IsNullOrWhiteSpace(categoryFilter) ? "all" : categoryFilter.ToLowerInvariant().Trim();
 
-            var map = Find.CurrentMap;
+            // Read-only query: prefer the acting colonist's map, fall back to the viewed map.
+            var map = RimMind.Actions.Policies.ActionPermissionGuard.ResolveActorAndMap(args).Map ?? Find.CurrentMap;
             if (map == null)
             {
                 var noMapResult = new
@@ -137,7 +138,7 @@ namespace RimMind.Actions.Actions
         private static List<string> DetectBottlenecks(Map map, float outdoorTemp, bool hasPower)
         {
             var list = new List<string>();
-            var colonists = map.mapPawns.FreeColonistsSpawned
+            var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map)
                 .Where(p => RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
                 .ToList();
 

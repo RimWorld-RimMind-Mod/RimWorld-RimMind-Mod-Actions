@@ -71,7 +71,8 @@ namespace RimMind.Actions.Tests
             Assert.True(result.IsOk);
             var parsed = JObject.Parse(result.Value.Content);
             Assert.True((bool)parsed["seekShelter"]!["ok"]!);
-            Assert.True((bool)parsed["stabilizeMorale"]!["ok"]!);
+            Assert.Null(parsed["stabilizeMorale"]);
+            Assert.Null(thought.ReceivedArgs); // no Catharsis mood buff injection
         }
 
         [Fact]
@@ -82,7 +83,7 @@ namespace RimMind.Actions.Tests
             Assert.Equal("composite", tool.Definition.Category);
             Assert.Contains("pawn.job.set", tool.RequiredToolIds);
             Assert.Contains("pawn.draft.toggle", tool.RequiredToolIds);
-            Assert.Contains("pawn.thought.add", tool.RequiredToolIds);
+            Assert.DoesNotContain("pawn.thought.add", tool.RequiredToolIds);
         }
     }
 }

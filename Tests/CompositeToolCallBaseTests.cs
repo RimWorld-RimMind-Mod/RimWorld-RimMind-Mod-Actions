@@ -216,13 +216,36 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
-        public void IsPreApproved_DetectsPreApprovedAndIsApprovedFlags()
+        public void IsPreApproved_IgnoresLlmJsonFlags_AndHonorsOnlyTrustedChannel()
         {
-            Assert.True(CompositeToolCallBase.IsPreApproved("{\"pre_approved\":true}"));
-            Assert.True(CompositeToolCallBase.IsPreApproved("{\"is_approved\":true}"));
-            Assert.False(CompositeToolCallBase.IsPreApproved("{\"pre_approved\":false}"));
-            Assert.False(CompositeToolCallBase.IsPreApproved("{}"));
-            Assert.False(CompositeToolCallBase.IsPreApproved((string?)null));
+            // An LLM writing approval flags into its own arguments must not bypass RequireApproval.
+            Assert.False(CompositeToolCallBase.IsPreApproved(new ToolCallArgs { ArgumentsJson = "{\"pre_approved\":true}" }));
+            Assert.False(CompositeToolCallBase.IsPreApproved(new ToolCallArgs { ArgumentsJson = "{\"is_approved\":true}" }));
+            Assert.True(CompositeToolCallBase.IsPreApproved(new ToolCallArgs { ArgumentsJson = "{}", IsPlayerApproved = true }));
+        }
+
+        [Theory]
+        [InlineData(true)]
+        [InlineData(false)]
+        public async Task ExecuteAtomicAsync_Propagates_PlayerApproval_To_Child(bool approved)
+        {
+            var handler = new CapturingToolHandler(
+                Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("done", "handler-id", "handler-name")));
+            var composite = new TestCompositeToolCall(new Dictionary<string, IToolHandler>
+            {
+                ["move_to"] = handler
+            });
+            var parentArgs = new ToolCallArgs
+            {
+                ToolCallId = "parent-approval",
+                ToolName = "composite",
+                ArgumentsJson = "{\"pre_approved\":true}",
+                IsPlayerApproved = approved
+            };
+
+            await composite.ExecuteAtomicForTestAsync("move_to", "{}", parentArgs, CancellationToken.None);
+
+            Assert.Equal(approved, handler.ReceivedArgs!.IsPlayerApproved);
         }
 
         [Fact]
@@ -323,6 +346,29 @@ namespace RimMind.Actions.Tests
             Assert.False(composite.AreRequiredToolsRegisteredForTest());
         }
 
+        [Fact]
+        public void Definition_And_RequiredToolIds_Are_Cached_Across_Repeated_Accesses()
+        {
+            var composite = new TestCompositeToolCall(new Dictionary<string, IToolHandler>());
+            Assert.Same(composite.Definition, composite.Definition);
+
+            var stabilize = new StabilizeRestCompositeTool();
+            Assert.Same(stabilize.Definition, stabilize.Definition);
+            Assert.Same(stabilize.RequiredToolIds, stabilize.RequiredToolIds);
+
+            var flee = new EmergencyFleeCompositeTool();
+            Assert.Same(flee.Definition, flee.Definition);
+            Assert.Same(flee.RequiredToolIds, flee.RequiredToolIds);
+
+            var eat = new EatAndRecreationCompositeTool();
+            Assert.Same(eat.Definition, eat.Definition);
+            Assert.Same(eat.RequiredToolIds, eat.RequiredToolIds);
+
+            var triage = new TriagePatientCompositeTool();
+            Assert.Same(triage.Definition, triage.Definition);
+            Assert.Same(triage.RequiredToolIds, triage.RequiredToolIds);
+        }
+
         private sealed class TestCompositeToolCall : CompositeToolCallBase
         {
             private readonly IReadOnlyDictionary<string, IToolHandler> _handlers;
@@ -334,7 +380,7 @@ namespace RimMind.Actions.Tests
 
             public override string Id => "test_composite";
 
-            public override ToolDefinition Definition => new ToolDefinition { Id = Id };
+            protected override ToolDefinition BuildDefinition() => new ToolDefinition { Id = Id };
 
             public override IReadOnlyList<string> RequiredToolIds => new[] { "test_tool" };
 

@@ -8,7 +8,7 @@ using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.ValueObjects;
-using RimMind.Infrastructure.Verse;
+using RimMind.Presentation.Api;
 using RimWorld;
 using Verse;
 using Verse.AI;
@@ -23,7 +23,7 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_place_blueprint";
 
-        public override ToolDefinition Definition => new ToolDefinition
+        protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
             Category = "action",
@@ -44,7 +44,14 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Missing required parameter 'building_def'.")));
             }
 
-            var map = Find.CurrentMap;
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            if (actorResolution.Error != null)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
+            }
+
+            var map = actorResolution.Map;
             if (map == null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -67,12 +74,25 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidDefName($"Building '{buildingDefName}' not found. Call actions_query_buildable_structures to see valid buildable defs.")));
             }
 
+            // The label fallback above searches every ThingDef (items, plants...): only accept player-buildable,
+            // research-unlocked buildings.
+            if (thingDef.category != ThingCategory.Building || !thingDef.BuildableByPlayer || !thingDef.IsResearchFinished)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                    RimMindErrors.InvalidDefName($"'{thingDef.defName}' is not a player-buildable, research-unlocked building. Call actions_query_buildable_structures to see valid buildable defs.")));
+            }
+
             // 2. Auto-Stuff Selection (Stockpile-Aware)
             ThingDef? selectedStuff = null;
             TryGetArgument<string>(args.ArgumentsJson, "stuff_def", out var stuffDefName);
             if (!string.IsNullOrWhiteSpace(stuffDefName))
             {
                 selectedStuff = DefDatabase<ThingDef>.GetNamedSilentFail(stuffDefName.Trim());
+                // Discard LLM-supplied stuff that this building cannot be made from; auto-selection below takes over.
+                if (selectedStuff != null && (!thingDef.MadeFromStuff || !GenStuff.AllowedStuffsFor(thingDef).Contains(selectedStuff)))
+                {
+                    selectedStuff = null;
+                }
             }
 
             if (thingDef.MadeFromStuff)
@@ -97,7 +117,7 @@ namespace RimMind.Actions.Actions
             }
 
             // 3. Anchor and Placement Position
-            Pawn? anchorPawn = ActionPermissionGuard.ResolveColonistOnMap(map, args, "pawn_id", fallbackToAnyActiveColonist: true);
+            Pawn? anchorPawn = actorResolution.Pawn;
 
             // Autonomy Permission & Resource Safety Guards
             var autonomyDomain = IsEssentialSurvivalStructure(thingDef.defName)
@@ -115,12 +135,16 @@ namespace RimMind.Actions.Actions
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(safetyCheck.Error));
             }
 
-            IntVec3 anchorPos = anchorPawn?.Position ?? map.Center;
+            IntVec3 anchorPos = (anchorPawn != null && anchorPawn.Position.InHorDistOf(map.Center, 28f)) ? anchorPawn.Position : map.Center;
             TryGetArgument<string>(args.ArgumentsJson, "location_hint", out var locationHint);
             locationHint = string.IsNullOrWhiteSpace(locationHint) ? "near_base" : locationHint.ToLowerInvariant().Trim();
 
             var rot = Rot4.North;
-            IntVec3 targetCell = FindValidPlacementCell(map, thingDef, anchorPos, locationHint, rot, selectedStuff);
+            IntVec3 targetCell = FindValidPlacementCell(map, thingDef, anchorPos, locationHint, ref rot, selectedStuff);
+            if (!targetCell.IsValid && anchorPos != map.Center)
+            {
+                targetCell = FindValidPlacementCell(map, thingDef, map.Center, locationHint, ref rot, selectedStuff);
+            }
             if (!targetCell.IsValid)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -158,26 +182,41 @@ namespace RimMind.Actions.Actions
 
             if (autoConstruct && anchorPawn != null)
             {
-                var comp = anchorPawn.GetComp<CompPawnAgent>();
-                if (comp != null)
+                int startTick = Find.TickManager?.TicksGame ?? 0;
+                sessionStarted = RimMindAPI.Agent.StartIntentSession(
+                    pawn: anchorPawn,
+                    intentId: $"Construct_{thingDef.defName}",
+                    startTick: startTick,
+                    durationTicks: 2500, // 1 in-game hour lease
+                    priority: 7.8f,
+                    target: blueprint,
+                    jobProvider: p => IssueConstructionSubJob(p, map, blueprint, targetCell),
+                    completionPredicate: p =>
+                        map == null
+                        || ((blueprint == null || blueprint.Destroyed || !blueprint.Spawned)
+                            && !targetCell.GetThingList(map).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned)));
+                if (sessionStarted)
                 {
-                    int startTick = Find.TickManager?.TicksGame ?? 0;
-                    var session = new AgentIntentSession(
-                        intentId: $"Construct_{thingDef.defName}",
-                        startTick: startTick,
-                        durationTicks: 2500, // 1 in-game hour lease
-                        priority: 7.8f,
-                        target: blueprint,
-                        jobProvider: p => IssueConstructionSubJob(p, map, blueprint, targetCell),
-                        completionPredicate: p =>
-                            map == null
-                            || ((blueprint == null || blueprint.Destroyed || !blueprint.Spawned)
-                                && !targetCell.GetThingList(map).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned)));
-
-                    comp.StartIntentSession(session);
-                    sessionStarted = true;
                     builderName = anchorPawn.Name?.ToStringShort ?? anchorPawn.Label;
                 }
+            }
+
+            string stuffLabel = selectedStuff?.label ?? ActionPermissionGuard.TranslateOrFallback(
+                "RimMind.Actions.Blueprint.DefaultMaterials",
+                "default materials");
+            string placeMsg = ActionPermissionGuard.TranslateOrFallback(
+                "RimMind.Actions.Blueprint.PlaceSuccess",
+                "Successfully placed blueprint for {0} at ({1}, {2}) using {3}.",
+                thingDef.label,
+                targetCell.x,
+                targetCell.z,
+                stuffLabel);
+            if (sessionStarted)
+            {
+                placeMsg += ActionPermissionGuard.TranslateOrFallback(
+                    "RimMind.Actions.Blueprint.IntentChained",
+                    " Chained high-priority (7.8f) construction intent for {0}.",
+                    builderName);
             }
 
             var successPayload = new
@@ -190,8 +229,7 @@ namespace RimMind.Actions.Actions
                 placed_position = new { x = targetCell.x, z = targetCell.z },
                 chained_intent_session = sessionStarted,
                 assigned_builder = builderName,
-                message = $"Successfully placed blueprint for {thingDef.label} at ({targetCell.x}, {targetCell.z}) using {selectedStuff?.label ?? "default materials"}." +
-                          (sessionStarted ? $" Chained high-priority (7.8f) construction intent for {builderName}." : "")
+                message = placeMsg
             };
 
             return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
@@ -203,10 +241,13 @@ namespace RimMind.Actions.Actions
             }));
         }
 
-        private static IntVec3 FindValidPlacementCell(Map map, ThingDef def, IntVec3 anchor, string hint, Rot4 rot, ThingDef? stuff)
+        private static IntVec3 FindValidPlacementCell(Map map, ThingDef def, IntVec3 anchor, string hint, ref Rot4 rot, ThingDef? stuff)
         {
             bool wantsIndoor = hint.Contains("indoor") || hint.Contains("bed") || hint.Contains("room");
             bool wantsOutdoor = hint.Contains("outdoor");
+            Rot4[] rotations = def.rotatable
+                ? new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West }
+                : new[] { Rot4.North };
 
             for (int radius = 2; radius <= 25; radius += 2)
             {
@@ -218,29 +259,51 @@ namespace RimMind.Actions.Actions
                     var room = cell.GetRoom(map);
                     if (wantsIndoor && (room == null || room.PsychologicallyOutdoors)) continue;
                     if (wantsOutdoor && room != null && !room.PsychologicallyOutdoors) continue;
-
-                    // Ensure cell does not block doors
                     if (room != null && room.IsDoorway) continue;
 
-                    // Validate building placement rules
-                    var acceptance = GenConstruct.CanPlaceBlueprintAt(def, cell, rot, map, false, null, null, stuff);
-                    if (acceptance.Accepted)
+                    foreach (var candidateRot in rotations)
                     {
+                        if (GenConstruct.CanPlaceBlueprintAt(def, cell, candidateRot, map, false, null, null, stuff).Accepted)
+                        {
+                            rot = candidateRot;
+                            return cell;
+                        }
+                    }
+                }
+            }
+
+            // Deterministic radial scan with room preference
+            foreach (var cell in GenRadial.RadialCellsAround(anchor, 28, true))
+            {
+                if (!cell.IsValid || !cell.InBounds(map) || cell.Fogged(map) || !cell.Standable(map)) continue;
+                var room = cell.GetRoom(map);
+                if (wantsIndoor && (room == null || room.PsychologicallyOutdoors)) continue;
+                if (wantsOutdoor && room != null && !room.PsychologicallyOutdoors) continue;
+                if (room != null && room.IsDoorway) continue;
+
+                foreach (var candidateRot in rotations)
+                {
+                    if (GenConstruct.CanPlaceBlueprintAt(def, cell, candidateRot, map, false, null, null, stuff).Accepted)
+                    {
+                        rot = candidateRot;
                         return cell;
                     }
                 }
             }
 
-            // Fallback: general standable search with CanPlaceBlueprintAt validation
-            for (int r = 4; r <= 20; r += 4)
+            // Deterministic radial fallback without strict indoor/outdoor constraint
+            foreach (var cell in GenRadial.RadialCellsAround(anchor, 28, true))
             {
-                for (int i = 0; i < 8; i++)
+                if (!cell.IsValid || !cell.InBounds(map) || cell.Fogged(map) || !cell.Standable(map)) continue;
+                var room = cell.GetRoom(map);
+                if (room != null && room.IsDoorway) continue;
+
+                foreach (var candidateRot in rotations)
                 {
-                    var fallbackCell = CellFinder.StandableCellNear(anchor, map, r);
-                    if (!fallbackCell.IsValid || !fallbackCell.InBounds(map) || fallbackCell.Fogged(map)) continue;
-                    if (GenConstruct.CanPlaceBlueprintAt(def, fallbackCell, rot, map, false, null, null, stuff).Accepted)
+                    if (GenConstruct.CanPlaceBlueprintAt(def, cell, candidateRot, map, false, null, null, stuff).Accepted)
                     {
-                        return fallbackCell;
+                        rot = candidateRot;
+                        return cell;
                     }
                 }
             }
@@ -252,9 +315,12 @@ namespace RimMind.Actions.Actions
         {
             if (pawn == null || map == null || !targetCell.IsValid || !targetCell.InBounds(map)) return null;
 
-            if (pawn.workSettings != null && !pawn.workSettings.WorkIsActive(WorkTypeDefOf.Construction))
+            // Respect the player's work tab: never rewrite priorities. Pawns that cannot or are not assigned to
+            // construct are skipped; vanilla construction workers will still pick up the placed blueprint.
+            if (pawn.WorkTypeIsDisabled(WorkTypeDefOf.Construction)
+                || (pawn.workSettings != null && !pawn.workSettings.WorkIsActive(WorkTypeDefOf.Construction)))
             {
-                pawn.workSettings.SetPriority(WorkTypeDefOf.Construction, 1);
+                return null;
             }
 
             // Step 1: If blueprint is still active, try delivering resources then finishing frame

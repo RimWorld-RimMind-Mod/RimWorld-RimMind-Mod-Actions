@@ -21,7 +21,7 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_manage_zone";
 
-        public override ToolDefinition Definition => new ToolDefinition
+        protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
             Category = "action",
@@ -42,7 +42,14 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Missing required parameter 'zone_type' (Growing or Stockpile).")));
             }
 
-            var map = Find.CurrentMap;
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            if (actorResolution.Error != null)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
+            }
+
+            var map = actorResolution.Map;
             if (map == null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -50,7 +57,7 @@ namespace RimMind.Actions.Actions
             }
 
             // 1. Resolve Anchor Colonist & Autonomy Permission Guard
-            Pawn? pawn = ActionPermissionGuard.ResolveColonistOnMap(map, args, "pawn_id", fallbackToAnyActiveColonist: true);
+            Pawn? pawn = actorResolution.Pawn;
 
             var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.ResourceMarking, args);
             if (!permCheck.IsOk)
@@ -67,46 +74,16 @@ namespace RimMind.Actions.Actions
             if (height <= 0) height = 5;
             height = Math.Clamp(height, 2, 15);
 
-            IntVec3 origin = pawn?.Position ?? map.Center;
+            IntVec3 origin = (pawn != null && pawn.Position.InHorDistOf(map.Center, 28f)) ? pawn.Position : map.Center;
             string zoneTypeLower = zoneTypeStr.Trim().ToLowerInvariant();
             bool isGrowing = zoneTypeLower.Contains("grow") || zoneTypeLower.Contains("farm") || zoneTypeLower.Contains("plant");
 
-            // 3. Search for Best Rectangular Region
+            // 3. Search for Best Rectangular Region (fallback from pawn position to map.Center)
             CellRect bestRect = default;
-            int bestValidCells = 0;
-
-            for (int r = 0; r <= 25; r += 2)
+            int bestValidCells = SearchBestZoneRect(map, origin, width, height, isGrowing, out bestRect);
+            if (bestValidCells < 4 && origin != map.Center)
             {
-                foreach (var offset in GenRadial.RadialCellsAround(origin, r, true))
-                {
-                    var testRect = new CellRect(offset.x, offset.z, width, height);
-                    if (!testRect.FullyContainedWithin(new CellRect(0, 0, map.Size.x, map.Size.z))) continue;
-
-                    int validCells = 0;
-                    foreach (var cell in testRect)
-                    {
-                        if (cell.Fogged(map)) continue;
-                        if (map.zoneManager.ZoneAt(cell) != null) continue;
-
-                        var things = map.thingGrid.ThingsListAt(cell);
-                        if (things != null && things.Any(t => !t.def.CanOverlapZones)) continue;
-
-                        if (isGrowing)
-                        {
-                            if (cell.GetFertility(map) < 0.6f) continue;
-                        }
-
-                        validCells++;
-                    }
-
-                    if (validCells > bestValidCells)
-                    {
-                        bestValidCells = validCells;
-                        bestRect = testRect;
-                        if (bestValidCells >= width * height * 0.8f) break;
-                    }
-                }
-                if (bestValidCells >= width * height * 0.8f) break;
+                bestValidCells = SearchBestZoneRect(map, map.Center, width, height, isGrowing, out bestRect);
             }
 
             if (bestValidCells < 4)
@@ -207,6 +184,44 @@ namespace RimMind.Actions.Actions
                         bestRect.CenterCell.x, bestRect.CenterCell.z, details),
                     args.ToolCallId,
                     Id)));
+        }
+
+        private static int SearchBestZoneRect(Map map, IntVec3 origin, int width, int height, bool isGrowing, out CellRect bestRect)
+        {
+            bestRect = default;
+            int bestValidCells = 0;
+
+            foreach (var offset in GenRadial.RadialCellsAround(origin, 25f, true))
+            {
+                var testRect = new CellRect(offset.x, offset.z, width, height);
+                if (!testRect.FullyContainedWithin(new CellRect(0, 0, map.Size.x, map.Size.z))) continue;
+
+                int validCells = 0;
+                foreach (var cell in testRect)
+                {
+                    if (cell.Fogged(map)) continue;
+                    if (map.zoneManager.ZoneAt(cell) != null) continue;
+
+                    var things = map.thingGrid.ThingsListAt(cell);
+                    if (things != null && things.Any(t => !t.def.CanOverlapZones)) continue;
+
+                    if (isGrowing)
+                    {
+                        if (cell.GetFertility(map) < 0.6f) continue;
+                    }
+
+                    validCells++;
+                }
+
+                if (validCells > bestValidCells)
+                {
+                    bestValidCells = validCells;
+                    bestRect = testRect;
+                    if (bestValidCells >= width * height * 0.8f) break;
+                }
+            }
+
+            return bestValidCells;
         }
     }
 }

@@ -3,6 +3,7 @@
   <RimMind.Actions.SettingsTitle>RimMind - Actions</RimMind.Actions.SettingsTitle>
   <RimMind.Actions.Permission.Disabled>[Permission Blocked] Colony leader has disabled autonomous decisions in domain ({0}) for this colonist.</RimMind.Actions.Permission.Disabled>
   <RimMind.Actions.Permission.RequireApproval>[Approval Required] This operation ({0}) requires colony leader approval before execution.</RimMind.Actions.Permission.RequireApproval>
+  <RimMind.Actions.Permission.InvalidColonist>Requested colonist is not an active, standing colonist on any map (dead, downed, off-map, prisoner or not a colonist).</RimMind.Actions.Permission.InvalidColonist>
   <RimMind.Actions.Safety.WoodReserve>[Safety Guard] Colony wood reserve is only {0}, below minimum survival threshold (reserve: {1}); construction material consumption blocked!</RimMind.Actions.Safety.WoodReserve>
   <RimMind.Actions.Safety.SteelReserve>[Safety Guard] Colony steel reserve is only {0}, below minimum survival threshold (reserve: {1}); construction material consumption blocked!</RimMind.Actions.Safety.SteelReserve>
   <RimMind.Actions.Safety.BlueprintCap>[Safety Guard] Colony already has {0} active construction blueprints, reaching concurrency limit ({1}); new projects blocked!</RimMind.Actions.Safety.BlueprintCap>
@@ -18,4 +19,11 @@
   <RimMind.Actions.Room.SiteSelectionFailed>[Site Selection Failed] No open flat buildable area found nearby for a {0}x{0} room.</RimMind.Actions.Room.SiteSelectionFailed>
   <RimMind.Actions.Room.PlanSuccess>Successfully planned and placed {2} room blueprints ({3}x{3} walls/door/bed/light) centered at ({0}, {1}).</RimMind.Actions.Room.PlanSuccess>
   <RimMind.Actions.Room.LeaseChained> Chained continuous construction lease on builder {0}.</RimMind.Actions.Room.LeaseChained>
+  <RimMind.Actions.Blueprint.DefaultMaterials>default materials</RimMind.Actions.Blueprint.DefaultMaterials>
+  <RimMind.Actions.Blueprint.PlaceSuccess>Successfully placed blueprint for {0} at ({1}, {2}) using {3}.</RimMind.Actions.Blueprint.PlaceSuccess>
+  <RimMind.Actions.Blueprint.IntentChained> Chained high-priority (7.8f) construction intent for {0}.</RimMind.Actions.Blueprint.IntentChained>
+  <RimMind.Actions.Designate.NoNewTargets>No new undesignated '{0}' targets found near ({1}, {2}) (existing active designations: {3}).</RimMind.Actions.Designate.NoNewTargets>
+  <RimMind.Actions.Designate.NoTargetsInRadius>No undesignated '{0}' targets found within {1} tiles of ({2}, {3}).</RimMind.Actions.Designate.NoTargetsInRadius>
+  <RimMind.Actions.Designate.DesignateSuccess>Successfully designated {0} '{1}' target(s) ({2}). Colonists will execute via work priorities.</RimMind.Actions.Designate.DesignateSuccess>
+  <RimMind.Actions.Bill.AddSuccess>Successfully added bill '{0}' on '{1}'{2} ({3}).</RimMind.Actions.Bill.AddSuccess>
 </LanguageData>

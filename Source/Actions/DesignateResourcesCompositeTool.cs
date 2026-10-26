@@ -21,7 +21,7 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_designate_resources";
 
-        public override ToolDefinition Definition => new ToolDefinition
+        protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
             Category = "action",
@@ -42,7 +42,14 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Missing required parameter 'designation_type' (Harvest, ChopWood, or Mine).")));
             }
 
-            var map = Find.CurrentMap;
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            if (actorResolution.Error != null)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
+            }
+
+            var map = actorResolution.Map;
             if (map == null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -50,7 +57,7 @@ namespace RimMind.Actions.Actions
             }
 
             // 1. Resolve Colonist Pawn and Permission Check
-            Pawn? pawn = ActionPermissionGuard.ResolveColonistOnMap(map, args, "pawn_id", fallbackToAnyActiveColonist: true);
+            Pawn? pawn = actorResolution.Pawn;
 
             var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.ResourceMarking, args);
             if (!permCheck.IsOk)
@@ -80,8 +87,8 @@ namespace RimMind.Actions.Actions
             bool targetImpliesTrees =
                 rawTarget.IndexOf("tree", StringComparison.OrdinalIgnoreCase) >= 0 ||
                 rawTarget.IndexOf("wood", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                rawTarget.IndexOf("树", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                rawTarget.IndexOf("木", StringComparison.OrdinalIgnoreCase) >= 0;
+                rawTarget.IndexOf("\u6811", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                rawTarget.IndexOf("\u6728", StringComparison.OrdinalIgnoreCase) >= 0;
 
             if (IsGenericResourceFilter(targetNameFilter))
             {
@@ -136,7 +143,16 @@ namespace RimMind.Actions.Actions
                 candidatePredicate = t =>
                 {
                     if (t is not Plant plant) return false;
+                    // Never cut the colony's own crops (growing zones or hydroponics/plant pots).
+                    if (map.zoneManager?.ZoneAt(plant.Position) is Zone_Growing) return false;
+                    if (plant.Position.GetEdifice(map) is Building_PlantGrower) return false;
                     if (map.designationManager.DesignationOn(plant, desDef) != null) return false;
+                    if (!string.IsNullOrWhiteSpace(targetNameFilter))
+                    {
+                        if (!plant.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)
+                            && !plant.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                            return false;
+                    }
                     return true;
                 };
             }
@@ -146,7 +162,9 @@ namespace RimMind.Actions.Actions
                 candidatePredicate = t =>
                 {
                     if (t.def.mineable != true && t is not Mineable) return false;
-                    if (map.designationManager.DesignationOn(t, desDef) != null) return false;
+                    // Without an explicit target, only mine resource rock (ores), never plain stone that may be a base wall.
+                    if (string.IsNullOrWhiteSpace(targetNameFilter) && t.def.building?.isResourceRock != true) return false;
+                    if ((desDef.targetType == TargetType.Cell ? map.designationManager.DesignationAt(t.Position, desDef) : map.designationManager.DesignationOn(t, desDef)) != null) return false;
                     if (!string.IsNullOrWhiteSpace(targetNameFilter))
                     {
                         if (!t.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)
@@ -226,37 +244,34 @@ namespace RimMind.Actions.Actions
                 }
             }
 
-            // Also unforbid any already-dropped WoodLog or raw food on the map so colonists can haul them
-            int unforbidCount = 0;
-            foreach (var thing in allSpawnedThings)
-            {
-                if (thing == null || !thing.Spawned || thing.Destroyed) continue;
-                if (thing.Position.Fogged(map)) continue;
-                if (thing.def == ThingDefOf.WoodLog || (thing.def?.IsNutritionGivingIngestible == true && !thing.def.IsCorpse))
-                {
-                    if (thing.IsForbidden(Faction.OfPlayer))
-                    {
-                        thing.SetForbidden(false, false);
-                        unforbidCount++;
-                    }
-                }
-            }
-
+            // Note: this tool intentionally never unforbids items. Forbid state is a player decision.
             if (candidates.Count == 0)
             {
                 int existingDesignations = map.designationManager?.AllDesignations?.Count(d => d.def == desDef) ?? 0;
-                if (unforbidCount > 0 || existingDesignations > 0)
+                if (existingDesignations > 0)
                 {
                     return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
                         ToolResult.Ok(
-                            $"No new undesignated '{designationTypeStr}' targets found near ({centerCell.x}, {centerCell.z}) (existing active designations: {existingDesignations}, unforbidden resource stacks: {unforbidCount}).",
+                            ActionPermissionGuard.TranslateOrFallback(
+                                "RimMind.Actions.Designate.NoNewTargets",
+                                "No new undesignated '{0}' targets found near ({1}, {2}) (existing active designations: {3}).",
+                                designationTypeStr,
+                                centerCell.x,
+                                centerCell.z,
+                                existingDesignations),
                             args.ToolCallId,
                             Id)));
                 }
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
                     RimMindErrors.InvalidAction(
                         Id,
-                        $"No undesignated '{designationTypeStr}' targets found within {radius} tiles of ({centerCell.x}, {centerCell.z}).")));
+                        ActionPermissionGuard.TranslateOrFallback(
+                            "RimMind.Actions.Designate.NoTargetsInRadius",
+                            "No undesignated '{0}' targets found within {1} tiles of ({2}, {3}).",
+                            designationTypeStr,
+                            radius,
+                            centerCell.x,
+                            centerCell.z))));
             }
 
             // 6. Sort by Distance and Apply Designation
@@ -268,7 +283,7 @@ namespace RimMind.Actions.Actions
             int addedCount = 0;
             foreach (var target in selected)
             {
-                map.designationManager.AddDesignation(new Designation(target, desDef));
+                map.designationManager.AddDesignation(desDef.targetType == TargetType.Cell ? new Designation(target.Position, desDef) : new Designation(target, desDef));
                 addedCount++;
             }
 
@@ -277,7 +292,12 @@ namespace RimMind.Actions.Actions
 
             return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
                 ToolResult.Ok(
-                    $"Successfully designated {addedCount} '{desDef.label}' target(s) ({targetSample}). Colonists will execute via work priorities.",
+                    ActionPermissionGuard.TranslateOrFallback(
+                        "RimMind.Actions.Designate.DesignateSuccess",
+                        "Successfully designated {0} '{1}' target(s) ({2}). Colonists will execute via work priorities.",
+                        addedCount,
+                        desDef.label,
+                        targetSample),
                     args.ToolCallId,
                     Id)));
         }

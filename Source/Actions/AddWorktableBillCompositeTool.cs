@@ -21,7 +21,7 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_add_worktable_bill";
 
-        public override ToolDefinition Definition => new ToolDefinition
+        protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
             Category = "action",
@@ -42,7 +42,14 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Missing required parameter 'recipe_def'.")));
             }
 
-            var map = Find.CurrentMap;
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            if (actorResolution.Error != null)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
+            }
+
+            var map = actorResolution.Map;
             if (map == null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -50,7 +57,7 @@ namespace RimMind.Actions.Actions
             }
 
             // 1. Resolve Assigned Colonist Pawn
-            Pawn? pawn = ActionPermissionGuard.ResolveColonistOnMap(map, args, "pawn_id", fallbackToAnyActiveColonist: true);
+            Pawn? pawn = actorResolution.Pawn;
 
             // 2. Resolve RecipeDef
             var recipeDef = DefDatabase<RecipeDef>.GetNamedSilentFail(recipeDefName.Trim());
@@ -124,14 +131,9 @@ namespace RimMind.Actions.Actions
                     var mapRawFoods = targetWorktable.Map.listerThings
                         .ThingsInGroup(ThingRequestGroup.FoodSourceNotPlantOrTree)
                         .Where(t => t != null && t.Spawned && t.def?.thingCategories != null && t.def.thingCategories.Contains(rawCat))
+                        // Forbid state is a player decision: count only accessible food, never unforbid it.
+                        .Where(t => !t.IsForbidden(Faction.OfPlayer))
                         .ToList();
-                    foreach (var food in mapRawFoods)
-                    {
-                        if (food.IsForbidden(Faction.OfPlayer))
-                        {
-                            food.SetForbidden(false, false);
-                        }
-                    }
                     rawNutrition = mapRawFoods.Sum(t => t.stackCount);
                 }
                 if (rawNutrition <= 0)
@@ -198,7 +200,13 @@ namespace RimMind.Actions.Actions
 
             return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
                 ToolResult.Ok(
-                    $"Successfully added bill '{recipeDef.label}' on '{targetWorktable.LabelCap}'{assignedNotice} ({modeDesc}).",
+                    ActionPermissionGuard.TranslateOrFallback(
+                        "RimMind.Actions.Bill.AddSuccess",
+                        "Successfully added bill '{0}' on '{1}'{2} ({3}).",
+                        recipeDef.label,
+                        targetWorktable.LabelCap,
+                        assignedNotice,
+                        modeDesc),
                     args.ToolCallId,
                     Id)));
         }

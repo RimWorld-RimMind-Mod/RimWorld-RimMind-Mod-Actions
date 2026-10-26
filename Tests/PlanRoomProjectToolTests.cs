@@ -54,11 +54,14 @@ namespace RimMind.Actions.Tests
         public void PlanRoomProject_Chains_AgentIntentSession()
         {
             var source = ReadActionsSource(Path.Combine("Actions", "PlanRoomProjectCompositeTool.cs"));
-            Assert.Contains("AgentIntentSession", source);
+            Assert.Contains("RimMindAPI.Agent.StartIntentSession", source);
+            Assert.DoesNotContain("using RimMind.Infrastructure", source);
             Assert.Contains("StartIntentSession", source);
             Assert.Contains("PlaceBlueprintForBuild", source);
             Assert.Contains("targetCells", source);
             Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", source);
+            Assert.Contains("GenRadial.RadialCellsAround(origin, 30f, true)", source);
+            Assert.DoesNotContain("for (int r = 4; r <= 30; r += 2)", source);
         }
     }
 }

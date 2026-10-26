@@ -48,7 +48,7 @@ namespace RimMind.Actions.Tests
             else
             {
                 Assert.False(result.IsOk, $"Expected Error for {stuff} with amount {availableAmount}");
-                Assert.Contains("熔断拦截", result.Error.Message);
+                Assert.Contains("[Safety Guard]", result.Error.Message);
             }
         }
 
@@ -68,7 +68,8 @@ namespace RimMind.Actions.Tests
             else
             {
                 Assert.False(result.IsOk);
-                Assert.Contains("并发上限 (2)", result.Error.Message);
+                Assert.Contains("[Safety Guard]", result.Error.Message);
+                Assert.Contains("concurrency limit (2)", result.Error.Message);
             }
         }
 
