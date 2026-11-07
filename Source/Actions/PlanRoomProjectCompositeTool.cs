@@ -4,14 +4,18 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
+using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
+#if !RIMMIND_ACTIONS_TESTS
 using RimWorld;
-using Verse;
 using Verse.AI;
+#endif
+using Verse;
 
 namespace RimMind.Actions.Actions
 {
@@ -24,6 +28,23 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_plan_room_project";
 
+        private static readonly string[] Aliases = new[]
+        {
+            "plan_room_project",
+            "actions.plan_room_project"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "room_type"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.BlueprintPlacement;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => false;
+        protected override string? DisplayName => "Plan Room Project";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
+
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
@@ -34,10 +55,44 @@ namespace RimMind.Actions.Actions
 
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
 
+        protected override AutonomyDomain? ResolveAutonomyDomain(JObject? root, ToolCallArgs args)
+        {
+            string? roomType = root?["room_type"]?.ToString();
+            if (string.IsNullOrWhiteSpace(roomType) && args != null)
+            {
+                TryGetArgument<string>(args.ArgumentsJson, "room_type", out roomType);
+            }
+            if (string.IsNullOrWhiteSpace(roomType))
+            {
+                roomType = "Shelter";
+            }
+
+            string normalized = roomType!.Trim();
+            bool isSurvivalRoom = normalized.Equals("Shelter", StringComparison.OrdinalIgnoreCase)
+                               || normalized.Equals("Bedroom", StringComparison.OrdinalIgnoreCase);
+            return isSurvivalRoom
+                ? AutonomyDomain.EmergencySurvival
+                : AutonomyDomain.BlueprintPlacement;
+        }
+
         public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(
             ToolCallArgs args,
             CancellationToken ct)
         {
+#if RIMMIND_ACTIONS_TESTS
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.BlueprintPlacement;
+            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            {
+                var guard = GuardColonistTarget(testPawnId, domain, args);
+                if (guard.IsErr)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                }
+            }
+            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                ToolResult.Ok("Planned room", args.ToolCallId, Id)));
+#else
             var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: false);
             if (actorResolution.Error != null)
             {
@@ -69,9 +124,8 @@ namespace RimMind.Actions.Actions
 
             bool isSurvivalRoom = roomType.Equals("Shelter", StringComparison.OrdinalIgnoreCase)
                                || roomType.Equals("Bedroom", StringComparison.OrdinalIgnoreCase);
-            var roomAutonomyDomain = isSurvivalRoom
-                ? AutonomyDomain.EmergencySurvival
-                : AutonomyDomain.BlueprintPlacement;
+            var roomAutonomyDomain = ResolveAutonomyDomain(new JObject { ["room_type"] = roomType }, args)
+                ?? (isSurvivalRoom ? AutonomyDomain.EmergencySurvival : AutonomyDomain.BlueprintPlacement);
 
             var permCheck = ActionPermissionGuard.CheckPermission(builderPawn, Id, roomAutonomyDomain, args);
             if (!permCheck.IsOk)
@@ -253,8 +307,10 @@ namespace RimMind.Actions.Actions
                     planMsg,
                     args.ToolCallId,
                     Id)));
+#endif
         }
 
+#if !RIMMIND_ACTIONS_TESTS
         private static bool TryFindClearRoomRect(Map map, IntVec3 origin, int size, ThingDef? selectedStuff, out CellRect bestRect)
         {
             bestRect = default;
@@ -299,5 +355,6 @@ namespace RimMind.Actions.Actions
             }
             return false;
         }
+#endif
     }
 }

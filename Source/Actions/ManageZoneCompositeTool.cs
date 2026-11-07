@@ -6,8 +6,11 @@ using System.Threading.Tasks;
 using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
+using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
+#if !RIMMIND_ACTIONS_TESTS
 using RimWorld;
+#endif
 using Verse;
 
 namespace RimMind.Actions.Actions
@@ -20,6 +23,24 @@ namespace RimMind.Actions.Actions
     public sealed class ManageZoneCompositeTool : CompositeToolCallBase
     {
         public override string Id => "actions_manage_zone";
+
+        private static readonly string[] Aliases = new[]
+        {
+            "manage_zone",
+            "actions.manage_zone"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "zone_type",
+            "crop_def"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.ResourceMarking;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => false;
+        protected override string? DisplayName => "Manage Zone";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
 
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
@@ -42,6 +63,20 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Missing required parameter 'zone_type' (Growing or Stockpile).")));
             }
 
+#if RIMMIND_ACTIONS_TESTS
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.ResourceMarking;
+            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            {
+                var guard = GuardColonistTarget(testPawnId, domain, args);
+                if (guard.IsErr)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                }
+            }
+            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                ToolResult.Ok($"Zone {zoneTypeStr}", args.ToolCallId, Id)));
+#else
             var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
             if (actorResolution.Error != null)
             {
@@ -59,7 +94,9 @@ namespace RimMind.Actions.Actions
             // 1. Resolve Anchor Colonist & Autonomy Permission Guard
             Pawn? pawn = actorResolution.Pawn;
 
-            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.ResourceMarking, args);
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.ResourceMarking;
+            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
@@ -184,8 +221,10 @@ namespace RimMind.Actions.Actions
                         bestRect.CenterCell.x, bestRect.CenterCell.z, details),
                     args.ToolCallId,
                     Id)));
+#endif
         }
 
+#if !RIMMIND_ACTIONS_TESTS
         private static int SearchBestZoneRect(Map map, IntVec3 origin, int width, int height, bool isGrowing, out CellRect bestRect)
         {
             bestRect = default;
@@ -223,5 +262,6 @@ namespace RimMind.Actions.Actions
 
             return bestValidCells;
         }
+#endif
     }
 }

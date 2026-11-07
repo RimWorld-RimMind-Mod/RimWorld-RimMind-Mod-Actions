@@ -4,14 +4,18 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
+using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
+#if !RIMMIND_ACTIONS_TESTS
 using RimWorld;
-using Verse;
 using Verse.AI;
+#endif
+using Verse;
 
 namespace RimMind.Actions.Actions
 {
@@ -23,6 +27,24 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_place_blueprint";
 
+        private static readonly string[] Aliases = new[]
+        {
+            "place_blueprint",
+            "actions.place_blueprint"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "building_def",
+            "stuff_def"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.BlueprintPlacement;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => false;
+        protected override string? DisplayName => "Place Blueprint";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
+
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
@@ -32,6 +54,18 @@ namespace RimMind.Actions.Actions
         };
 
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
+
+        protected override AutonomyDomain? ResolveAutonomyDomain(JObject? root, ToolCallArgs args)
+        {
+            string? buildingDefName = root?["building_def"]?.ToString();
+            if (string.IsNullOrWhiteSpace(buildingDefName) && args != null)
+            {
+                TryGetArgument<string>(args.ArgumentsJson, "building_def", out buildingDefName);
+            }
+            return IsEssentialSurvivalStructure(buildingDefName?.Trim())
+                ? AutonomyDomain.EmergencySurvival
+                : AutonomyDomain.BlueprintPlacement;
+        }
 
         public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(
             ToolCallArgs args,
@@ -44,6 +78,20 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Missing required parameter 'building_def'.")));
             }
 
+#if RIMMIND_ACTIONS_TESTS
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.BlueprintPlacement;
+            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            {
+                var guard = GuardColonistTarget(testPawnId, domain, args);
+                if (guard.IsErr)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                }
+            }
+            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                ToolResult.Ok($"Placed {buildingDefName}", args.ToolCallId, Id)));
+#else
             var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
             if (actorResolution.Error != null)
             {
@@ -120,9 +168,10 @@ namespace RimMind.Actions.Actions
             Pawn? anchorPawn = actorResolution.Pawn;
 
             // Autonomy Permission & Resource Safety Guards
-            var autonomyDomain = IsEssentialSurvivalStructure(thingDef.defName)
-                ? AutonomyDomain.EmergencySurvival
-                : AutonomyDomain.BlueprintPlacement;
+            var autonomyDomain = ResolveAutonomyDomain(new JObject { ["building_def"] = thingDef.defName }, args)
+                ?? (IsEssentialSurvivalStructure(thingDef.defName)
+                    ? AutonomyDomain.EmergencySurvival
+                    : AutonomyDomain.BlueprintPlacement);
             var permCheck = ActionPermissionGuard.CheckPermission(anchorPawn, Id, autonomyDomain, args);
             if (!permCheck.IsOk)
             {
@@ -239,8 +288,10 @@ namespace RimMind.Actions.Actions
                 Content = JsonConvert.SerializeObject(successPayload, Formatting.Indented),
                 IsError = false
             }));
+#endif
         }
 
+#if !RIMMIND_ACTIONS_TESTS
         private static IntVec3 FindValidPlacementCell(Map map, ThingDef def, IntVec3 anchor, string hint, ref Rot4 rot, ThingDef? stuff)
         {
             bool wantsIndoor = hint.Contains("indoor") || hint.Contains("bed") || hint.Contains("room");
@@ -358,6 +409,7 @@ namespace RimMind.Actions.Actions
 
             return null;
         }
+#endif
 
         private static bool IsEssentialSurvivalStructure(string? defName)
         {

@@ -5,8 +5,11 @@ using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.ValueObjects;
+#if !RIMMIND_ACTIONS_TESTS
 using RimWorld;
+#endif
 using Verse;
 
 namespace RimMind.Actions.Actions
@@ -18,6 +21,24 @@ namespace RimMind.Actions.Actions
     public sealed class QueryBuildableStructuresCompositeTool : CompositeToolCallBase
     {
         public override string Id => "actions_query_buildable_structures";
+
+        private static readonly string[] Aliases = new[]
+        {
+            "query_buildable_structures",
+            "actions.query_buildable_structures"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "category"
+        };
+
+        protected override ToolKind ToolKind => ToolKind.Query;
+        protected override AutonomyDomain? DefaultAutonomyDomain => null;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => false;
+        protected override string? DisplayName => "Query Buildable Structures";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
 
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
@@ -36,6 +57,15 @@ namespace RimMind.Actions.Actions
             TryGetArgument<string>(args.ArgumentsJson, "category", out var categoryFilter);
             categoryFilter = string.IsNullOrWhiteSpace(categoryFilter) ? "all" : categoryFilter.ToLowerInvariant().Trim();
 
+#if RIMMIND_ACTIONS_TESTS
+            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
+            {
+                ToolCallId = args.ToolCallId,
+                ToolName = Id,
+                Content = JsonConvert.SerializeObject(new { status = "ok", category = categoryFilter }),
+                IsError = false
+            }));
+#else
             // Read-only query: prefer the acting colonist's map, fall back to the viewed map.
             var map = RimMind.Actions.Policies.ActionPermissionGuard.ResolveActorAndMap(args).Map ?? Find.CurrentMap;
             if (map == null)
@@ -123,8 +153,10 @@ namespace RimMind.Actions.Actions
                 Content = JsonConvert.SerializeObject(responsePayload),
                 IsError = false
             }));
+#endif
         }
 
+#if !RIMMIND_ACTIONS_TESTS
         private static bool HasActivePowerGrid(Map map)
         {
             if (map.powerNetManager == null) return false;
@@ -196,6 +228,7 @@ namespace RimMind.Actions.Actions
             if (comp > 0 && compHave < comp) return false;
             return true;
         }
+#endif
 
         private static List<StructureEntry> GetCuratedStructures()
         {

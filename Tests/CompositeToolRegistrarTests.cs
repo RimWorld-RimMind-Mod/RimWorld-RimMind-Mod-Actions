@@ -79,11 +79,11 @@ namespace RimMind.Actions.Tests
         {
             Verse.Log.Messages.Clear();
             var registry = new FakeRegistry();
-            // RegisterAll scans the test assembly which contains both StabilizeRestCompositeTool
-            // and DuplicateIdCompositeTool — both declare Id "actions.stabilize_rest".
+            // RegisterAll scans the test assembly which contains all 11 production composite tools
+            // plus DuplicateIdCompositeTool — which duplicates Id "actions.stabilize_rest".
             CompositeToolRegistrar.RegisterAll(registry, typeof(DuplicateIdCompositeTool).Assembly);
 
-            Assert.Equal(4, registry.RegisteredHandlers.Count);
+            Assert.Equal(11, registry.RegisteredHandlers.Count);
             Assert.Contains(Verse.Log.Messages, m => m.Contains("duplicate Id") && m.Contains("actions.stabilize_rest"));
         }
 
