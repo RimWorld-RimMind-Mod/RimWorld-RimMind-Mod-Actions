@@ -21,6 +21,24 @@ namespace RimMind.Actions.Actions
             "pawn.draft.toggle"
         };
 
+        private static readonly string[] Aliases = new[]
+        {
+            "emergency_flee",
+            "actions_emergency_flee"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "danger_level",
+            "reason"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.EmergencySurvival;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => true;
+        protected override string? DisplayName => "Emergency Flee";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
+
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
@@ -43,7 +61,9 @@ namespace RimMind.Actions.Actions
             }
             int pawnId = pawnIdResult.Value;
 
-            var guard = GuardColonistTarget(pawnId, AutonomyDomain.EmergencySurvival, args);
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.EmergencySurvival;
+            var guard = GuardColonistTarget(pawnId, domain, args);
             if (guard.IsErr)
             {
                 return Result<ToolResult, RimMindError>.Err(guard.Error);

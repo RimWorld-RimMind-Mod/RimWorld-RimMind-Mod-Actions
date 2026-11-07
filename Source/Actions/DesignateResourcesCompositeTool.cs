@@ -6,8 +6,11 @@ using System.Threading.Tasks;
 using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
+using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
+#if !RIMMIND_ACTIONS_TESTS
 using RimWorld;
+#endif
 using Verse;
 
 namespace RimMind.Actions.Actions
@@ -20,6 +23,25 @@ namespace RimMind.Actions.Actions
     public sealed class DesignateResourcesCompositeTool : CompositeToolCallBase
     {
         public override string Id => "actions_designate_resources";
+
+        private static readonly string[] Aliases = new[]
+        {
+            "designate_resources",
+            "designate_map_order",
+            "actions.designate_resources"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "designation_type",
+            "target_name"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.ResourceMarking;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => false;
+        protected override string? DisplayName => "Designate Resources";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
 
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
@@ -42,6 +64,20 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Missing required parameter 'designation_type' (Harvest, ChopWood, or Mine).")));
             }
 
+#if RIMMIND_ACTIONS_TESTS
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.ResourceMarking;
+            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            {
+                var guard = GuardColonistTarget(testPawnId, domain, args);
+                if (guard.IsErr)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                }
+            }
+            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                ToolResult.Ok($"Designated {designationTypeStr}", args.ToolCallId, Id)));
+#else
             var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
             if (actorResolution.Error != null)
             {
@@ -59,7 +95,9 @@ namespace RimMind.Actions.Actions
             // 1. Resolve Colonist Pawn and Permission Check
             Pawn? pawn = actorResolution.Pawn;
 
-            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.ResourceMarking, args);
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.ResourceMarking;
+            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
@@ -300,8 +338,10 @@ namespace RimMind.Actions.Actions
                         targetSample),
                     args.ToolCallId,
                     Id)));
+#endif
         }
 
+#if !RIMMIND_ACTIONS_TESTS
         private static bool IsGenericResourceFilter(string? filter)
         {
             if (string.IsNullOrWhiteSpace(filter)) return true;
@@ -331,5 +371,6 @@ namespace RimMind.Actions.Actions
                 || f.Contains("_")
                 || f.Any(c => c > 127);
         }
+#endif
     }
 }

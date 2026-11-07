@@ -6,13 +6,16 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Application.Features.Tools;
+using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.Common;
+using RimMind.Domain.Enums;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
 
 namespace RimMind.Actions.Actions
 {
-    public abstract class CompositeToolCallBase : ICompositeToolCall
+    public abstract class CompositeToolCallBase : ICompositeToolCall, IToolPolicyClassifier
     {
         public abstract string Id { get; }
 
@@ -20,13 +23,102 @@ namespace RimMind.Actions.Actions
 
         public virtual string OwnerModId => "RimMindActions";
 
-        public virtual ToolDefinition Definition => _cachedDefinition ??= BuildDefinition();
+        protected virtual ToolKind ToolKind => ToolKind.Mutation;
 
-        protected virtual ToolDefinition BuildDefinition() => new ToolDefinition { Id = Id };
+        protected virtual AutonomyDomain? DefaultAutonomyDomain => null;
+
+        protected virtual RiskLevel DefaultRiskLevel => MapDomainToRisk(DefaultAutonomyDomain, ToolKind);
+
+        protected virtual bool DefaultRequiresApproval => false;
+
+        protected virtual IReadOnlyList<string> ToolAliases => Array.Empty<string>();
+
+        protected virtual bool IsSelfTargetedTool => false;
+
+        protected virtual string? DisplayName => null;
+
+        protected virtual IReadOnlyList<string> SummaryArgKeys => Array.Empty<string>();
+
+        public virtual ToolManifest Manifest => new ToolManifest
+        {
+            OwnerModId = OwnerModId,
+            Kind = ToolKind,
+            DefaultDomain = DefaultAutonomyDomain,
+            AutonomyDomainId = DefaultAutonomyDomain?.ToString(),
+            RiskLevel = DefaultRiskLevel,
+            RequiresApproval = DefaultRequiresApproval,
+            Aliases = ToolAliases,
+            IsSelfTargeted = IsSelfTargetedTool,
+            DisplayName = DisplayName,
+            SummaryArgKeys = SummaryArgKeys
+        };
+
+        public virtual ToolDefinition Definition => _cachedDefinition ??= BuildDefinition() with
+        {
+            Manifest = Manifest
+        };
+
+        protected virtual ToolDefinition BuildDefinition() => new ToolDefinition
+        {
+            Id = Id,
+            Manifest = Manifest
+        };
 
         public abstract IReadOnlyList<string> RequiredToolIds { get; }
 
         public abstract Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct);
+
+        protected virtual AutonomyDomain? ResolveAutonomyDomain(JObject? root, ToolCallArgs args)
+            => DefaultAutonomyDomain;
+
+        public virtual ToolPolicyDecision Classify(ToolCallArgs args)
+        {
+            var effectiveArgs = args ?? new ToolCallArgs
+            {
+                ToolName = Id,
+                ArgumentsJson = "{}"
+            };
+            var root = TryParseArgumentsObject(effectiveArgs.ArgumentsJson);
+            var domain = ResolveAutonomyDomain(root, effectiveArgs);
+            return new ToolPolicyDecision
+            {
+                Domain = domain,
+                DomainId = domain?.ToString() ?? Manifest.AutonomyDomainId,
+                Risk = MapDomainToRisk(domain, ToolKind),
+                RequiresApproval = Manifest.RequiresApproval
+            };
+        }
+
+        protected static JObject? TryParseArgumentsObject(string? argumentsJson)
+        {
+            if (string.IsNullOrWhiteSpace(argumentsJson)) return null;
+            try
+            {
+                return JToken.Parse(argumentsJson!) as JObject;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static RiskLevel MapDomainToRisk(AutonomyDomain? domain, ToolKind kind)
+        {
+            if (!domain.HasValue)
+            {
+                return kind == ToolKind.Query ? RiskLevel.Low : RiskLevel.Medium;
+            }
+
+            return domain.Value switch
+            {
+                AutonomyDomain.EmergencySurvival => RiskLevel.Low,
+                AutonomyDomain.ResourceMarking => RiskLevel.Low,
+                AutonomyDomain.WorktableBills => RiskLevel.Medium,
+                AutonomyDomain.BlueprintPlacement => RiskLevel.Medium,
+                AutonomyDomain.HighRiskOperations => RiskLevel.High,
+                _ => RiskLevel.Medium
+            };
+        }
 
         protected virtual IToolHandler? FindTool(string toolId) => RimMindAPI.Tools.FindById(toolId);
 
@@ -75,23 +167,7 @@ namespace RimMind.Actions.Actions
         }
 
         internal protected static bool TryParsePawnIdString(string? raw, out int parsedId)
-        {
-            parsedId = 0;
-            if (string.IsNullOrWhiteSpace(raw)) return false;
-            var s = raw!.Trim();
-            if (s.StartsWith("NPC-", StringComparison.OrdinalIgnoreCase) ||
-                s.StartsWith("pawn-", StringComparison.OrdinalIgnoreCase))
-            {
-                s = s.Substring(s.IndexOf('-') + 1).Trim();
-            }
-            else if (s.StartsWith("Pawn_", StringComparison.OrdinalIgnoreCase))
-            {
-                int idx = s.Length - 1;
-                while (idx >= 0 && char.IsDigit(s[idx])) idx--;
-                s = s.Substring(idx + 1);
-            }
-            return int.TryParse(s, out parsedId);
-        }
+            => PawnIdParser.TryParse(raw, out parsedId);
 
         /// <summary>
         /// Checks whether trusted host code (e.g. an advisor approval card the player clicked) approved this call.
@@ -163,7 +239,7 @@ namespace RimMind.Actions.Actions
                 }
                 if (typeof(T) == typeof(int) && token.Type == JTokenType.String)
                 {
-                    if (TryParsePawnIdString(token.ToString(), out int parsedInt))
+                    if (PawnIdParser.TryParse(token.ToString(), out int parsedInt))
                     {
                         value = (T)(object)parsedInt;
                         return true;
@@ -224,7 +300,7 @@ namespace RimMind.Actions.Actions
         {
             int contextFallbackId = (args.PawnId.HasValue && args.PawnId.Value > 0)
                 ? args.PawnId.Value
-                : (TryParsePawnIdString(args.NpcId, out int parsedNpcId) && parsedNpcId > 0 ? parsedNpcId : 0);
+                : (PawnIdParser.TryParse(args.NpcId, out int parsedNpcId) && parsedNpcId > 0 ? parsedNpcId : 0);
 
             if (TryGetArgument<int>(args.ArgumentsJson, key, out int id) && id > 0)
             {

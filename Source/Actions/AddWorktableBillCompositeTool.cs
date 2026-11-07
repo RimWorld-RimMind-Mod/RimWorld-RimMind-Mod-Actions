@@ -3,11 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
 using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
+using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
+#if !RIMMIND_ACTIONS_TESTS
 using RimWorld;
+#endif
 using Verse;
 
 namespace RimMind.Actions.Actions
@@ -21,6 +25,24 @@ namespace RimMind.Actions.Actions
     {
         public override string Id => "actions_add_worktable_bill";
 
+        private static readonly string[] Aliases = new[]
+        {
+            "add_worktable_bill",
+            "actions.add_worktable_bill"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "recipe_def",
+            "worktable_def"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.WorktableBills;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => false;
+        protected override string? DisplayName => "Add Worktable Bill";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
+
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
@@ -30,6 +52,18 @@ namespace RimMind.Actions.Actions
         };
 
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
+
+        protected override AutonomyDomain? ResolveAutonomyDomain(JObject? root, ToolCallArgs args)
+        {
+            string? recipeDefName = root?["recipe_def"]?.ToString();
+            if (string.IsNullOrWhiteSpace(recipeDefName) && args != null)
+            {
+                TryGetArgument<string>(args.ArgumentsJson, "recipe_def", out recipeDefName);
+            }
+            return IsEssentialSurvivalRecipe(recipeDefName?.Trim())
+                ? AutonomyDomain.EmergencySurvival
+                : AutonomyDomain.WorktableBills;
+        }
 
         public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(
             ToolCallArgs args,
@@ -42,6 +76,20 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Missing required parameter 'recipe_def'.")));
             }
 
+#if RIMMIND_ACTIONS_TESTS
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.WorktableBills;
+            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            {
+                var guard = GuardColonistTarget(testPawnId, domain, args);
+                if (guard.IsErr)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                }
+            }
+            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                ToolResult.Ok($"Added bill {recipeDefName}", args.ToolCallId, Id)));
+#else
             var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
             if (actorResolution.Error != null)
             {
@@ -74,9 +122,10 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidDefName($"Recipe '{recipeDefName}' not found in database.")));
             }
 
-            var billAutonomyDomain = IsEssentialSurvivalRecipe(recipeDef.defName)
-                ? AutonomyDomain.EmergencySurvival
-                : AutonomyDomain.WorktableBills;
+            var billAutonomyDomain = ResolveAutonomyDomain(new JObject { ["recipe_def"] = recipeDef.defName }, args)
+                ?? (IsEssentialSurvivalRecipe(recipeDef.defName)
+                    ? AutonomyDomain.EmergencySurvival
+                    : AutonomyDomain.WorktableBills);
             var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, billAutonomyDomain, args);
             if (!permCheck.IsOk)
             {
@@ -209,6 +258,7 @@ namespace RimMind.Actions.Actions
                         modeDesc),
                     args.ToolCallId,
                     Id)));
+#endif
         }
 
         private static bool IsEssentialSurvivalRecipe(string? recipeDefName)

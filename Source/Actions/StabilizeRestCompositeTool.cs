@@ -17,6 +17,23 @@ namespace RimMind.Actions.Actions
             "pawn.job.set"
         };
 
+        private static readonly string[] Aliases = new[]
+        {
+            "stabilize_rest",
+            "actions_stabilize_rest"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "reason"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.EmergencySurvival;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => true;
+        protected override string? DisplayName => "Force Rest";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
+
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
@@ -39,7 +56,9 @@ namespace RimMind.Actions.Actions
             }
             int pawnId = pawnIdResult.Value;
 
-            var guard = GuardColonistTarget(pawnId, AutonomyDomain.EmergencySurvival, args);
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.EmergencySurvival;
+            var guard = GuardColonistTarget(pawnId, domain, args);
             if (guard.IsErr)
             {
                 return Result<ToolResult, RimMindError>.Err(guard.Error);

@@ -20,6 +20,24 @@ namespace RimMind.Actions.Actions
             "pawn.job.set"
         };
 
+        private static readonly string[] Aliases = new[]
+        {
+            "triage_patient",
+            "actions_triage_patient"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "urgency",
+            "reason"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.EmergencySurvival;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => true;
+        protected override string? DisplayName => "Triage Patient";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
+
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
             Id = Id,
@@ -42,7 +60,9 @@ namespace RimMind.Actions.Actions
             }
             int patientId = patientIdResult.Value;
 
-            var patientGuard = GuardColonistTarget(patientId, AutonomyDomain.EmergencySurvival, args, "patient_id");
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.EmergencySurvival;
+            var patientGuard = GuardColonistTarget(patientId, domain, args, "patient_id");
             if (patientGuard.IsErr)
             {
                 return Result<ToolResult, RimMindError>.Err(patientGuard.Error);
@@ -52,7 +72,7 @@ namespace RimMind.Actions.Actions
             bool hasDoctor = TryGetArgument<int>(args.ArgumentsJson, "doctor_id", out doctorId) && doctorId > 0;
             if (hasDoctor)
             {
-                var doctorGuard = GuardColonistTarget(doctorId, AutonomyDomain.EmergencySurvival, args, "doctor_id");
+                var doctorGuard = GuardColonistTarget(doctorId, domain, args, "doctor_id");
                 if (doctorGuard.IsErr)
                 {
                     return Result<ToolResult, RimMindError>.Err(doctorGuard.Error);

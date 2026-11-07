@@ -7,9 +7,11 @@ using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.ValueObjects;
+#if !RIMMIND_ACTIONS_TESTS
 using RimWorld;
-using Verse;
 using Verse.AI;
+#endif
+using Verse;
 
 namespace RimMind.Actions.Actions
 {
@@ -20,6 +22,27 @@ namespace RimMind.Actions.Actions
     public sealed class ManageEquipmentCompositeTool : CompositeToolCallBase
     {
         public override string Id => "actions_manage_equipment";
+
+        private static readonly string[] Aliases = new[]
+        {
+            "manage_equipment",
+            "equip_combat_gear",
+            "actions.manage_equipment",
+            "actions.equip_combat_gear",
+            "actions_equip_combat_gear"
+        };
+
+        private static readonly string[] SummaryKeys = new[]
+        {
+            "target_apparel_def",
+            "purpose"
+        };
+
+        protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.EmergencySurvival;
+        protected override IReadOnlyList<string> ToolAliases => Aliases;
+        protected override bool IsSelfTargetedTool => true;
+        protected override string? DisplayName => "Manage Equipment";
+        protected override IReadOnlyList<string> SummaryArgKeys => SummaryKeys;
 
         protected override ToolDefinition BuildDefinition() => new ToolDefinition
         {
@@ -35,6 +58,21 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
+#if RIMMIND_ACTIONS_TESTS
+            var pawnIdResult = TryGetPawnIdOrError(args, "pawn_id");
+            if (pawnIdResult.IsErr)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(pawnIdResult.Error));
+            }
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.EmergencySurvival;
+            var guard = GuardColonistTarget(pawnIdResult.Value, domain, args);
+            if (guard.IsErr)
+            {
+                return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+            }
+            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("ok", args.ToolCallId, Id)));
+#else
             var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
             if (actorResolution.Error != null)
             {
@@ -58,7 +96,9 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Colonist pawn not found or invalid.")));
             }
 
-            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, AutonomyDomain.EmergencySurvival, args);
+            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+                ?? AutonomyDomain.EmergencySurvival;
+            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
@@ -169,6 +209,7 @@ namespace RimMind.Actions.Actions
                         pawn.LabelShort, $"{ambientTemp:F1}", bestApparel.LabelCap),
                     args.ToolCallId,
                     Id)));
+#endif
         }
     }
 }

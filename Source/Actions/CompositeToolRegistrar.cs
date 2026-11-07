@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Reflection;
 using RimMind.Application.Common.Interfaces.Tools;
+using RimMind.Presentation.Api;
 using Verse;
 
 namespace RimMind.Actions.Actions
@@ -43,6 +44,23 @@ namespace RimMind.Actions.Actions
                     Log.Warning($"[RimMind-Actions] Skipped {type.FullName}: {ex.Message}");
                 }
             }
+
+            TryRegisterArgumentAdapter();
+        }
+
+        private static void TryRegisterArgumentAdapter()
+        {
+#if !RIMMIND_ACTIONS_TESTS
+            try
+            {
+                var adapterRegistry = RimMindAPI.Ext.Get<IToolArgumentAdapter>();
+                adapterRegistry?.Register(new ActionsToolArgumentAdapter());
+            }
+            catch
+            {
+                // Safe no-op when runtime extension registry is not initialized (e.g. isolated unit tests).
+            }
+#endif
         }
     }
 }
