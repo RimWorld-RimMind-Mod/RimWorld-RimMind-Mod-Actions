@@ -8,6 +8,7 @@ using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.ValueObjects;
 #if !RIMMIND_ACTIONS_TESTS
+using RimMind.Actions.Spatial;
 using RimWorld;
 #endif
 using Verse;
@@ -67,7 +68,8 @@ namespace RimMind.Actions.Actions
             }));
 #else
             // Read-only query: prefer the acting colonist's map, fall back to the viewed map.
-            var map = RimMind.Actions.Policies.ActionPermissionGuard.ResolveActorAndMap(args).Map ?? Find.CurrentMap;
+            var actorResolution = RimMind.Actions.Policies.ActionPermissionGuard.ResolveActorAndMap(args);
+            var map = actorResolution.Map ?? Find.CurrentMap;
             if (map == null)
             {
                 var noMapResult = new
@@ -83,6 +85,29 @@ namespace RimMind.Actions.Actions
                     IsError = false
                 }));
             }
+
+            var anchorPawn = actorResolution.Pawn;
+            IntVec3 fallbackAnchor = anchorPawn != null && anchorPawn.Spawned && anchorPawn.Map == map ? anchorPawn.Position : map.Center;
+            ColonySpatialSnapshot spatialSnapshot = MapSpatialSnapshotBuilder.Build(map, fallbackAnchor.x, fallbackAnchor.z, radius: 22);
+            var roomSummaries = spatialSnapshot.Rooms
+                .Take(10)
+                .Select(r => new
+                {
+                    room_id = r.RoomId,
+                    role = r.Role,
+                    center_x = r.CenterX,
+                    center_z = r.CenterZ,
+                    cells = r.CellCount,
+                    beds = r.BedCount,
+                    worktables = r.WorktableCount,
+                    tables = r.TableCount
+                })
+                .ToList();
+            string spatialAsciiMap = ColonySpatialClusterSolver.RenderCompactAsciiGrid(
+                spatialSnapshot,
+                spatialSnapshot.ColonyAnchorX,
+                spatialSnapshot.ColonyAnchorZ,
+                radius: 10);
 
             int woodCount = RimMind.Actions.Policies.ResourceSafetyGuard.GetAvailableCount(map, ThingDefOf.WoodLog);
             int steelCount = RimMind.Actions.Policies.ResourceSafetyGuard.GetAvailableCount(map, ThingDefOf.Steel);
@@ -131,6 +156,14 @@ namespace RimMind.Actions.Actions
             var responsePayload = new
             {
                 status = "ok",
+                colony_anchor = new
+                {
+                    x = spatialSnapshot.ColonyAnchorX,
+                    z = spatialSnapshot.ColonyAnchorZ,
+                    has_base = spatialSnapshot.HasBaseAnchor
+                },
+                rooms = roomSummaries,
+                spatial_ascii_map = spatialAsciiMap,
                 colony_status = new
                 {
                     outdoor_temperature_c = Math.Round(outdoorTemp, 1),

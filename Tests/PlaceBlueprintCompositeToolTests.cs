@@ -54,5 +54,17 @@ namespace RimMind.Actions.Tests
             Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", source);
             Assert.Contains("StartIntentSession", source);
         }
+
+        [Fact]
+        public void AllCompositeTools_Use_NullSafe_DefName_And_Label_Comparisons()
+        {
+            var actionsDir = Path.Combine(RepoRoot, "RimMind-Actions", "Source", "Actions");
+            foreach (var file in Directory.GetFiles(actionsDir, "*CompositeTool.cs"))
+            {
+                var source = File.ReadAllText(file);
+                Assert.DoesNotContain(".label.Equals(", source);
+                Assert.DoesNotContain(".defName.Equals(", source);
+            }
+        }
     }
 }

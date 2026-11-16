@@ -98,8 +98,8 @@ namespace RimMind.Actions.Tests
                 ToolName = placeBlueprint.Id,
                 ArgumentsJson = "{\"building_def\":\"SculptureSmall\"}"
             });
-            Assert.Equal(AutonomyDomain.EmergencySurvival, bedPolicy.Domain);
-            Assert.Equal(RiskLevel.Low, bedPolicy.Risk);
+            Assert.Equal(AutonomyDomain.BlueprintPlacement, bedPolicy.Domain);
+            Assert.Equal(RiskLevel.Medium, bedPolicy.Risk);
             Assert.Equal(AutonomyDomain.BlueprintPlacement, statuePolicy.Domain);
             Assert.Equal(RiskLevel.Medium, statuePolicy.Risk);
 
@@ -130,8 +130,8 @@ namespace RimMind.Actions.Tests
                 ToolName = planRoom.Id,
                 ArgumentsJson = "{\"room_type\":\"Storage\"}"
             });
-            Assert.Equal(AutonomyDomain.EmergencySurvival, shelterPolicy.Domain);
-            Assert.Equal(RiskLevel.Low, shelterPolicy.Risk);
+            Assert.Equal(AutonomyDomain.BlueprintPlacement, shelterPolicy.Domain);
+            Assert.Equal(RiskLevel.Medium, shelterPolicy.Risk);
             Assert.Equal(AutonomyDomain.BlueprintPlacement, storagePolicy.Domain);
             Assert.Equal(RiskLevel.Medium, storagePolicy.Risk);
         }
@@ -158,6 +158,14 @@ namespace RimMind.Actions.Tests
                 new AgentDecision { ActionIntent = "designate_map_order" },
                 1);
             Assert.Equal("ChopWood", oakArgs["designation_type"]?.ToString());
+
+            // Starving colonies must be able to request hunting via a plain target hint.
+            var huntArgs = adapter.AdaptArguments(
+                "actions_designate_resources",
+                JObject.Parse("{\"target_name\":\"wild animals for meat\"}"),
+                new AgentDecision { ActionIntent = "designate_map_order" },
+                1);
+            Assert.Equal("Hunt", huntArgs["designation_type"]?.ToString());
 
             var restArgs = adapter.AdaptArguments(
                 "actions.stabilize_rest",

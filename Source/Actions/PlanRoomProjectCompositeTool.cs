@@ -67,12 +67,7 @@ namespace RimMind.Actions.Actions
                 roomType = "Shelter";
             }
 
-            string normalized = roomType!.Trim();
-            bool isSurvivalRoom = normalized.Equals("Shelter", StringComparison.OrdinalIgnoreCase)
-                               || normalized.Equals("Bedroom", StringComparison.OrdinalIgnoreCase);
-            return isSurvivalRoom
-                ? AutonomyDomain.EmergencySurvival
-                : AutonomyDomain.BlueprintPlacement;
+            return AutonomyDomain.BlueprintPlacement;
         }
 
         public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(
@@ -122,10 +117,7 @@ namespace RimMind.Actions.Actions
             TryGetArgument<string>(args.ArgumentsJson, "room_type", out var roomType);
             if (string.IsNullOrWhiteSpace(roomType)) roomType = "Shelter";
 
-            bool isSurvivalRoom = roomType.Equals("Shelter", StringComparison.OrdinalIgnoreCase)
-                               || roomType.Equals("Bedroom", StringComparison.OrdinalIgnoreCase);
-            var roomAutonomyDomain = ResolveAutonomyDomain(new JObject { ["room_type"] = roomType }, args)
-                ?? (isSurvivalRoom ? AutonomyDomain.EmergencySurvival : AutonomyDomain.BlueprintPlacement);
+            var roomAutonomyDomain = AutonomyDomain.BlueprintPlacement;
 
             var permCheck = ActionPermissionGuard.CheckPermission(builderPawn, Id, roomAutonomyDomain, args);
             if (!permCheck.IsOk)
@@ -142,7 +134,12 @@ namespace RimMind.Actions.Actions
             ThingDef? selectedStuff = null;
             if (!string.IsNullOrWhiteSpace(stuffDefName))
             {
-                selectedStuff = DefDatabase<ThingDef>.GetNamedSilentFail(stuffDefName.Trim());
+                var trimmedStuff = stuffDefName.Trim();
+                selectedStuff = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedStuff)
+                    ?? DefDatabase<ThingDef>.AllDefsListForReading
+                        .FirstOrDefault(d => d != null
+                                          && (string.Equals(d.defName, trimmedStuff, StringComparison.OrdinalIgnoreCase)
+                                           || string.Equals(d.label, trimmedStuff, StringComparison.OrdinalIgnoreCase)));
             }
             if (selectedStuff == null)
             {

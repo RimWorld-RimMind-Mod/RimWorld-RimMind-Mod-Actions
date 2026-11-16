@@ -59,6 +59,8 @@
     <Compile Include="../Source/Actions/QueryBuildableStructuresCompositeTool.cs" />
     <Compile Include="../Source/Actions/CompositeToolRegistrar.cs" />
     <Compile Include="../Source/Policies/ResourceSafetyPolicy.cs" />
+    <Compile Include="../Source/Spatial/ColonySpatialClusterSolver.cs" />
+    <Compile Include="../Source/Spatial/MapSpatialSnapshotBuilder.cs" />
   </ItemGroup>
 
   <!-- SDK 自动包含项目目录下的 .cs 文件，无需显式列出测试文件和桩 -->
