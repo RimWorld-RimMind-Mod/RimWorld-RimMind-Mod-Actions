@@ -48,7 +48,7 @@ namespace RimMind.Actions.Actions
             Id = Id,
             Category = "action",
             Description = "Adds a production bill (e.g. CookMealSimple, ButcherCorpseFlesh, Make_Apparel_Parka) to an available worktable in the colony with target count safety limits and duplicate prevention.",
-            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"recipe_def\":{\"type\":\"string\",\"description\":\"DefName of the recipe to add (e.g. 'CookMealSimple', 'CookMealFine', 'Make_Apparel_Parka', 'ButcherCorpseFlesh').\"},\"worktable_def\":{\"type\":\"string\",\"description\":\"Optional DefName of the target worktable (e.g. 'TableStoveElectric', 'TableStoveFueled', 'HandTailoringBench', 'TableButcher'). If omitted, searches for any capable player worktable.\"},\"target_count\":{\"type\":\"integer\",\"description\":\"Target inventory stock count or repeat count (default: 10).\"},\"repeat_mode\":{\"type\":\"string\",\"description\":\"Production mode: 'TargetCount' (make until you have X, default) or 'RepeatCount' (make X times).\"},\"pawn_id\":{\"type\":\"integer\",\"description\":\"Optional colonist pawn ID to assign exclusively or anchor permission check.\"}},\"required\":[\"recipe_def\"]}"
+            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"recipe_def\":{\"type\":\"string\",\"description\":\"DefName of the recipe to add (e.g. 'CookMealSimple', 'CookMealFine', 'Make_Apparel_Parka', 'ButcherCorpseFlesh').\"},\"worktable_def\":{\"type\":\"string\",\"description\":\"Optional DefName of the target worktable (e.g. 'FueledStove', 'ElectricStove', 'Campfire', 'HandTailoringBench', 'TableButcher'). If omitted or not present, searches for any capable player worktable.\"},\"target_count\":{\"type\":\"integer\",\"description\":\"Target inventory stock count or repeat count (default: 10).\"},\"repeat_mode\":{\"type\":\"string\",\"description\":\"Production mode: 'TargetCount' (make until you have X, default) or 'RepeatCount' (make X times).\"},\"pawn_id\":{\"type\":\"integer\",\"description\":\"Optional colonist pawn ID to assign exclusively or anchor permission check.\"}},\"required\":[\"recipe_def\"]}"
         };
 
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
@@ -108,12 +108,14 @@ namespace RimMind.Actions.Actions
             Pawn? pawn = actorResolution.Pawn;
 
             // 2. Resolve RecipeDef
-            var recipeDef = DefDatabase<RecipeDef>.GetNamedSilentFail(recipeDefName.Trim());
+            var trimmedRecipeName = recipeDefName.Trim();
+            var recipeDef = DefDatabase<RecipeDef>.GetNamedSilentFail(trimmedRecipeName);
             if (recipeDef == null)
             {
                 recipeDef = DefDatabase<RecipeDef>.AllDefsListForReading
-                    .FirstOrDefault(r => r.defName.Equals(recipeDefName.Trim(), StringComparison.OrdinalIgnoreCase)
-                                      || r.label.Equals(recipeDefName.Trim(), StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(r => r != null
+                                      && (string.Equals(r.defName, trimmedRecipeName, StringComparison.OrdinalIgnoreCase)
+                                       || string.Equals(r.label, trimmedRecipeName, StringComparison.OrdinalIgnoreCase)));
             }
 
             if (recipeDef == null)
@@ -143,21 +145,31 @@ namespace RimMind.Actions.Actions
 
             if (!string.IsNullOrWhiteSpace(worktableDefName))
             {
+                var trimmedTableName = worktableDefName.Trim();
                 targetWorktable = playerWorktables.FirstOrDefault(w =>
-                    w.def.defName.Equals(worktableDefName.Trim(), StringComparison.OrdinalIgnoreCase));
+                    w?.def != null
+                    && (string.Equals(w.def.defName, trimmedTableName, StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(w.def.label, trimmedTableName, StringComparison.OrdinalIgnoreCase)));
 
                 if (targetWorktable == null)
                 {
-                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                        RimMindErrors.InvalidAction(Id, $"Specified worktable '{worktableDefName}' not found or destroyed in player colony.")));
+                    // LLMs often guess a def name that does not exist (e.g. 'TableStoveFueled').
+                    // Prefer any capable worktable over failing outright.
+                    targetWorktable = FindCapableWorktable(playerWorktables, recipeDef);
+                    if (targetWorktable == null)
+                    {
+                        string available = playerWorktables.Count > 0
+                            ? string.Join(", ", playerWorktables.Select(w => w.def.defName).Distinct())
+                            : "none";
+                        return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                            RimMindErrors.InvalidAction(Id, $"Specified worktable '{worktableDefName}' not found in player colony and no other worktable can run '{recipeDef.defName}'. Available worktables: {available}.")));
+                    }
                 }
             }
             else
             {
                 // Find any table that can execute this recipe
-                targetWorktable = playerWorktables.FirstOrDefault(w =>
-                    (w.def.recipes != null && w.def.recipes.Contains(recipeDef))
-                    || (w.def.AllRecipes != null && w.def.AllRecipes.Contains(recipeDef)));
+                targetWorktable = FindCapableWorktable(playerWorktables, recipeDef);
             }
 
             if (targetWorktable == null)
@@ -167,7 +179,8 @@ namespace RimMind.Actions.Actions
             }
 
             // 4. Ingredient & Duplicate Check
-            bool isCookingRecipe = recipeDef.defName.Contains("Meal") || recipeDef.defName.Contains("Cook");
+            bool isCookingRecipe = (recipeDef.defName?.IndexOf("Meal", StringComparison.OrdinalIgnoreCase) >= 0)
+                                || (recipeDef.defName?.IndexOf("Cook", StringComparison.OrdinalIgnoreCase) >= 0);
             int rawNutrition = -1;
             if (isCookingRecipe && targetWorktable.Map != null)
             {
@@ -190,7 +203,7 @@ namespace RimMind.Actions.Actions
                     return Task.FromResult(Result<ToolResult, RimMindError>.Err(
                         RimMindErrors.InvalidAction(
                             Id,
-                            $"Missing raw food ingredients (0 raw food on map) for '{recipeDef.defName}' on '{targetWorktable.LabelCap}'. Call actions_designate_resources (Harvest) to gather wild food first.")));
+                            $"Missing raw food ingredients (0 raw food on map) for '{recipeDef.defName}' on '{targetWorktable.LabelCap}'. Call actions_designate_resources with designation_type 'Hunt' (wild animals) or 'Harvest' (wild plants/crops) to gather food first.")));
                 }
             }
 
@@ -260,6 +273,15 @@ namespace RimMind.Actions.Actions
                     Id)));
 #endif
         }
+
+#if !RIMMIND_ACTIONS_TESTS
+        private static Building_WorkTable? FindCapableWorktable(List<Building_WorkTable> tables, RecipeDef recipeDef)
+        {
+            return tables.FirstOrDefault(w =>
+                (w.def.recipes != null && w.def.recipes.Contains(recipeDef))
+                || (w.def.AllRecipes != null && w.def.AllRecipes.Contains(recipeDef)));
+        }
+#endif
 
         private static bool IsEssentialSurvivalRecipe(string? recipeDefName)
         {

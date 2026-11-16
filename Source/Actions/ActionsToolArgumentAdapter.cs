@@ -88,8 +88,13 @@ namespace RimMind.Actions.Actions
             }
             else if (!obj.ContainsKey("designation_type"))
             {
-                obj["designation_type"] = isFoodOrCropTarget ? "Harvest" : "ChopWood";
+                obj["designation_type"] = IsHuntTarget(targetStr) ? "Hunt" : (isFoodOrCropTarget ? "Harvest" : "ChopWood");
             }
         }
+
+        private static bool IsHuntTarget(string target)
+            => target.IndexOf("hunt", StringComparison.OrdinalIgnoreCase) >= 0
+            || target.IndexOf("meat", StringComparison.OrdinalIgnoreCase) >= 0
+            || target.IndexOf("animal", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 }

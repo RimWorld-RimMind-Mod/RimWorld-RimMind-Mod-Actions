@@ -12,6 +12,7 @@ using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
 #if !RIMMIND_ACTIONS_TESTS
+using RimMind.Actions.Spatial;
 using RimWorld;
 using Verse.AI;
 #endif
@@ -62,9 +63,7 @@ namespace RimMind.Actions.Actions
             {
                 TryGetArgument<string>(args.ArgumentsJson, "building_def", out buildingDefName);
             }
-            return IsEssentialSurvivalStructure(buildingDefName?.Trim())
-                ? AutonomyDomain.EmergencySurvival
-                : AutonomyDomain.BlueprintPlacement;
+            return AutonomyDomain.BlueprintPlacement;
         }
 
         public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(
@@ -107,13 +106,15 @@ namespace RimMind.Actions.Actions
             }
 
             // 1. Resolve BuildableDef
-            var thingDef = DefDatabase<ThingDef>.GetNamedSilentFail(buildingDefName.Trim());
+            var trimmedBuildingName = buildingDefName.Trim();
+            var thingDef = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedBuildingName);
             if (thingDef == null)
             {
-                // Fallback: case-insensitive search
+                // Fallback: null-safe case-insensitive search
                 thingDef = DefDatabase<ThingDef>.AllDefsListForReading
-                    .FirstOrDefault(d => d.defName.Equals(buildingDefName.Trim(), StringComparison.OrdinalIgnoreCase)
-                                      || d.label.Equals(buildingDefName.Trim(), StringComparison.OrdinalIgnoreCase));
+                    .FirstOrDefault(d => d != null
+                                      && (string.Equals(d.defName, trimmedBuildingName, StringComparison.OrdinalIgnoreCase)
+                                       || string.Equals(d.label, trimmedBuildingName, StringComparison.OrdinalIgnoreCase)));
             }
 
             if (thingDef == null)
@@ -135,7 +136,12 @@ namespace RimMind.Actions.Actions
             TryGetArgument<string>(args.ArgumentsJson, "stuff_def", out var stuffDefName);
             if (!string.IsNullOrWhiteSpace(stuffDefName))
             {
-                selectedStuff = DefDatabase<ThingDef>.GetNamedSilentFail(stuffDefName.Trim());
+                var trimmedStuffName = stuffDefName.Trim();
+                selectedStuff = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedStuffName)
+                    ?? DefDatabase<ThingDef>.AllDefsListForReading
+                        .FirstOrDefault(d => d != null
+                                          && (string.Equals(d.defName, trimmedStuffName, StringComparison.OrdinalIgnoreCase)
+                                           || string.Equals(d.label, trimmedStuffName, StringComparison.OrdinalIgnoreCase)));
                 // Discard LLM-supplied stuff that this building cannot be made from; auto-selection below takes over.
                 if (selectedStuff != null && (!thingDef.MadeFromStuff || !GenStuff.AllowedStuffsFor(thingDef).Contains(selectedStuff)))
                 {
@@ -168,10 +174,7 @@ namespace RimMind.Actions.Actions
             Pawn? anchorPawn = actorResolution.Pawn;
 
             // Autonomy Permission & Resource Safety Guards
-            var autonomyDomain = ResolveAutonomyDomain(new JObject { ["building_def"] = thingDef.defName }, args)
-                ?? (IsEssentialSurvivalStructure(thingDef.defName)
-                    ? AutonomyDomain.EmergencySurvival
-                    : AutonomyDomain.BlueprintPlacement);
+            var autonomyDomain = AutonomyDomain.BlueprintPlacement;
             var permCheck = ActionPermissionGuard.CheckPermission(anchorPawn, Id, autonomyDomain, args);
             if (!permCheck.IsOk)
             {
@@ -189,10 +192,28 @@ namespace RimMind.Actions.Actions
             locationHint = string.IsNullOrWhiteSpace(locationHint) ? "near_base" : locationHint.ToLowerInvariant().Trim();
 
             var rot = Rot4.North;
-            IntVec3 targetCell = FindValidPlacementCell(map, thingDef, anchorPos, locationHint, ref rot, selectedStuff);
+            string clusterReason = "default_fallback";
+            int clusterRoomId = 0;
+            IntVec3 targetCell = FindValidPlacementCell(
+                map,
+                thingDef,
+                anchorPos,
+                locationHint,
+                ref rot,
+                selectedStuff,
+                out clusterReason,
+                out clusterRoomId);
             if (!targetCell.IsValid && anchorPos != map.Center)
             {
-                targetCell = FindValidPlacementCell(map, thingDef, map.Center, locationHint, ref rot, selectedStuff);
+                targetCell = FindValidPlacementCell(
+                    map,
+                    thingDef,
+                    map.Center,
+                    locationHint,
+                    ref rot,
+                    selectedStuff,
+                    out clusterReason,
+                    out clusterRoomId);
             }
             if (!targetCell.IsValid)
             {
@@ -276,6 +297,9 @@ namespace RimMind.Actions.Actions
                 label = thingDef.label,
                 stuff_used = selectedStuff?.defName ?? "None",
                 placed_position = new { x = targetCell.x, z = targetCell.z },
+                rotation = rot.ToStringHuman(),
+                placement_reason = clusterReason,
+                room_id = clusterRoomId > 0 ? (int?)clusterRoomId : null,
                 chained_intent_session = sessionStarted,
                 assigned_builder = builderName,
                 message = placeMsg
@@ -292,7 +316,15 @@ namespace RimMind.Actions.Actions
         }
 
 #if !RIMMIND_ACTIONS_TESTS
-        private static IntVec3 FindValidPlacementCell(Map map, ThingDef def, IntVec3 anchor, string hint, ref Rot4 rot, ThingDef? stuff)
+        private static IntVec3 FindValidPlacementCell(
+            Map map,
+            ThingDef def,
+            IntVec3 anchor,
+            string hint,
+            ref Rot4 rot,
+            ThingDef? stuff,
+            out string clusterReason,
+            out int clusterRoomId)
         {
             bool wantsIndoor = hint.Contains("indoor") || hint.Contains("bed") || hint.Contains("room");
             bool wantsOutdoor = hint.Contains("outdoor");
@@ -300,30 +332,68 @@ namespace RimMind.Actions.Actions
                 ? new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West }
                 : new[] { Rot4.North };
 
-            for (int radius = 2; radius <= 25; radius += 2)
+            // 1. Spatial topology + peer-furniture clustering solver (replaces random spawn-adjacent placement)
+            try
             {
-                for (int attempt = 0; attempt < 12; attempt++)
+                ColonySpatialSnapshot snapshot = MapSpatialSnapshotBuilder.Build(map, anchor.x, anchor.z, radius: 26);
+                bool isBed = def.thingClass != null && typeof(Building_Bed).IsAssignableFrom(def.thingClass);
+                bool isWorkTable = def.thingClass != null && typeof(Building_WorkTable).IsAssignableFrom(def.thingClass);
+                bool isTable = def.surfaceType == SurfaceType.Eat;
+                bool isDefense = (def.building != null && def.building.IsTurret) || def.passability == Traversability.PassThroughOnly;
+                SpatialBuildingCategory category = ColonySpatialClusterSolver.ClassifyBuilding(
+                    def.defName,
+                    isBed: isBed,
+                    isWorkTable: isWorkTable,
+                    isTable: isTable,
+                    isDefense: isDefense);
+
+                SpatialCandidateScore? bestOverall = null;
+                Rot4 bestRot = rot;
+
+                foreach (Rot4 candidateRot in rotations)
                 {
-                    var cell = CellFinder.StandableCellNear(anchor, map, radius);
-                    if (!cell.IsValid || !cell.InBounds(map) || cell.Fogged(map)) continue;
-
-                    var room = cell.GetRoom(map);
-                    if (wantsIndoor && (room == null || room.PsychologicallyOutdoors)) continue;
-                    if (wantsOutdoor && room != null && !room.PsychologicallyOutdoors) continue;
-                    if (room != null && room.IsDoorway) continue;
-
-                    foreach (var candidateRot in rotations)
+                    var req = new SpatialPlacementRequest
                     {
-                        if (GenConstruct.CanPlaceBlueprintAt(def, cell, candidateRot, map, false, null, null, stuff).Accepted)
+                        BuildingDefName = def.defName ?? string.Empty,
+                        Category = category,
+                        SizeX = 1,
+                        SizeZ = 1,
+                        HasInteractionCell = false,
+                        LocationHint = hint,
+                        AnchorX = anchor.x,
+                        AnchorZ = anchor.z
+                    };
+
+                    List<SpatialCandidateScore> ranked = ColonySpatialClusterSolver.RankCandidates(
+                        snapshot,
+                        req,
+                        (cx, cz) => GenConstruct.CanPlaceBlueprintAt(def, new IntVec3(cx, 0, cz), candidateRot, map, false, null, null, stuff).Accepted);
+
+                    if (ranked.Count > 0)
+                    {
+                        SpatialCandidateScore top = ranked[0];
+                        if (bestOverall == null || top.Score > bestOverall.Score)
                         {
-                            rot = candidateRot;
-                            return cell;
+                            bestOverall = top;
+                            bestRot = candidateRot;
                         }
                     }
                 }
+
+                if (bestOverall != null)
+                {
+                    rot = bestRot;
+                    clusterReason = bestOverall.Reason;
+                    clusterRoomId = bestOverall.RoomId;
+                    return new IntVec3(bestOverall.X, 0, bestOverall.Z);
+                }
+            }
+            catch
+            {
+                // Fall back to deterministic radial scan if spatial solver encounters an unexpected map state
             }
 
-            // Deterministic radial scan with room preference
+            // 2. Deterministic radial scan with room preference
             foreach (var cell in GenRadial.RadialCellsAround(anchor, 28, true))
             {
                 if (!cell.IsValid || !cell.InBounds(map) || cell.Fogged(map) || !cell.Standable(map)) continue;
@@ -337,12 +407,14 @@ namespace RimMind.Actions.Actions
                     if (GenConstruct.CanPlaceBlueprintAt(def, cell, candidateRot, map, false, null, null, stuff).Accepted)
                     {
                         rot = candidateRot;
+                        clusterReason = "radial_fallback";
+                        clusterRoomId = room != null && !room.PsychologicallyOutdoors ? room.ID : 0;
                         return cell;
                     }
                 }
             }
 
-            // Deterministic radial fallback without strict indoor/outdoor constraint
+            // 3. Deterministic radial fallback without strict indoor/outdoor constraint
             foreach (var cell in GenRadial.RadialCellsAround(anchor, 28, true))
             {
                 if (!cell.IsValid || !cell.InBounds(map) || cell.Fogged(map) || !cell.Standable(map)) continue;
@@ -354,11 +426,15 @@ namespace RimMind.Actions.Actions
                     if (GenConstruct.CanPlaceBlueprintAt(def, cell, candidateRot, map, false, null, null, stuff).Accepted)
                     {
                         rot = candidateRot;
+                        clusterReason = "radial_unconstrained_fallback";
+                        clusterRoomId = 0;
                         return cell;
                     }
                 }
             }
 
+            clusterReason = "none";
+            clusterRoomId = 0;
             return IntVec3.Invalid;
         }
 
@@ -374,37 +450,44 @@ namespace RimMind.Actions.Actions
                 return null;
             }
 
-            // Step 1: If blueprint is still active, try delivering resources then finishing frame
-            if (blueprint != null && !blueprint.Destroyed && blueprint.Spawned)
+            try
             {
-                if (pawn.CanReserveAndReach(blueprint, PathEndMode.Touch, Danger.Some))
+                // Step 1: If blueprint is still active, try delivering resources then finishing frame
+                if (blueprint != null && !blueprint.Destroyed && blueprint.Spawned)
                 {
-                    var deliverBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints")?.Worker as WorkGiver_Scanner
-                        ?? new WorkGiver_ConstructDeliverResourcesToBlueprints();
-                    var haulJob = deliverBpGiver.JobOnThing(pawn, blueprint, true);
-                    if (haulJob != null) return haulJob;
+                    if (pawn.CanReserveAndReach(blueprint, PathEndMode.Touch, Danger.Some))
+                    {
+                        var deliverBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints")?.Worker as WorkGiver_Scanner
+                            ?? new WorkGiver_ConstructDeliverResourcesToBlueprints();
+                        var haulJob = deliverBpGiver.JobOnThing(pawn, blueprint, true);
+                        if (haulJob != null) return haulJob;
 
-                    var finishBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
-                        ?? new WorkGiver_ConstructFinishFrames();
-                    var finishBpJob = finishBpGiver.JobOnThing(pawn, blueprint, true);
-                    if (finishBpJob != null) return finishBpJob;
+                        var finishBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
+                            ?? new WorkGiver_ConstructFinishFrames();
+                        var finishBpJob = finishBpGiver.JobOnThing(pawn, blueprint, true);
+                        if (finishBpJob != null) return finishBpJob;
+                    }
+                    return null;
                 }
-                return null;
+
+                // Step 2: Blueprint was replaced by a Frame at targetCell
+                Frame? frame = targetCell.GetThingList(map).OfType<Frame>().FirstOrDefault(f => !f.Destroyed && f.Spawned);
+                if (frame != null && pawn.CanReserveAndReach(frame, PathEndMode.Touch, Danger.Some))
+                {
+                    var deliverFrameGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToFrames")?.Worker as WorkGiver_Scanner
+                        ?? new WorkGiver_ConstructDeliverResourcesToFrames();
+                    var deliverJob = deliverFrameGiver.JobOnThing(pawn, frame, true);
+                    if (deliverJob != null) return deliverJob;
+
+                    var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
+                        ?? new WorkGiver_ConstructFinishFrames();
+                    var finishJob = finishGiver.JobOnThing(pawn, frame, true);
+                    if (finishJob != null) return finishJob;
+                }
             }
-
-            // Step 2: Blueprint was replaced by a Frame at targetCell
-            Frame? frame = targetCell.GetThingList(map).OfType<Frame>().FirstOrDefault(f => !f.Destroyed && f.Spawned);
-            if (frame != null && pawn.CanReserveAndReach(frame, PathEndMode.Touch, Danger.Some))
+            catch
             {
-                var deliverFrameGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToFrames")?.Worker as WorkGiver_Scanner
-                    ?? new WorkGiver_ConstructDeliverResourcesToFrames();
-                var deliverJob = deliverFrameGiver.JobOnThing(pawn, frame, true);
-                if (deliverJob != null) return deliverJob;
-
-                var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
-                    ?? new WorkGiver_ConstructFinishFrames();
-                var finishJob = finishGiver.JobOnThing(pawn, frame, true);
-                if (finishJob != null) return finishJob;
+                return null;
             }
 
             return null;

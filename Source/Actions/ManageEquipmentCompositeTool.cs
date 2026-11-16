@@ -135,9 +135,10 @@ namespace RimMind.Actions.Actions
 
             if (!string.IsNullOrWhiteSpace(targetApparelDefName))
             {
+                var trimmedApparel = targetApparelDefName.Trim();
                 allApparel = allApparel.Where(a =>
-                    a.def.defName.Equals(targetApparelDefName.Trim(), StringComparison.OrdinalIgnoreCase)
-                    || a.Label.Contains(targetApparelDefName.Trim(), StringComparison.OrdinalIgnoreCase))
+                    string.Equals(a.def?.defName, trimmedApparel, StringComparison.OrdinalIgnoreCase)
+                    || (a.Label != null && a.Label.Contains(trimmedApparel, StringComparison.OrdinalIgnoreCase)))
                     .ToList();
             }
 

@@ -76,9 +76,39 @@ namespace RimMind.Actions.Actions
             var cancelJob = await ExecuteAtomicAsync("pawn.job.set", cancelArgs, args, ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
 
-            // 2. Direct pawn to rest and regenerate vital energies
-            var restArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "force_rest"));
-            var rest = await ExecuteAtomicAsync("pawn.job.set", restArgs, args, ct).ConfigureAwait(false);
+            // 2. Direct pawn to eat food if hunger-driven, otherwise rest and regenerate vital energies
+            TryGetArgument<string>(args.ArgumentsJson, "reason", out var reasonText);
+            bool wantsFood = !string.IsNullOrWhiteSpace(reasonText) &&
+                (reasonText.IndexOf("eat", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 reasonText.IndexOf("food", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 reasonText.IndexOf("hunger", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 reasonText.IndexOf("starv", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 reasonText.IndexOf("meal", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
+                 reasonText.IndexOf("nutrition", System.StringComparison.OrdinalIgnoreCase) >= 0);
+#if !RIMMIND_ACTIONS_TESTS
+            var targetPawn = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(pawnId);
+            if (targetPawn?.needs?.food != null && targetPawn.needs.food.CurLevelPercentage < 0.80f)
+            {
+                wantsFood = true;
+            }
+#endif
+
+            ToolResult rest;
+            if (wantsFood)
+            {
+                var eatArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "eat_food"));
+                rest = await ExecuteAtomicAsync("pawn.job.set", eatArgs, args, ct).ConfigureAwait(false);
+                if (rest.IsError)
+                {
+                    var restArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "force_rest"));
+                    rest = await ExecuteAtomicAsync("pawn.job.set", restArgs, args, ct).ConfigureAwait(false);
+                }
+            }
+            else
+            {
+                var restArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "force_rest"));
+                rest = await ExecuteAtomicAsync("pawn.job.set", restArgs, args, ct).ConfigureAwait(false);
+            }
 
             // No mood thought is injected: granting Catharsis on every LLM call was a free, repeatable mood buff.
             var summary = BuildStepSummary(

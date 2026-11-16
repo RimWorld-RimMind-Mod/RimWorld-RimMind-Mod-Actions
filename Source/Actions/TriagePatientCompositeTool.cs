@@ -84,12 +84,59 @@ namespace RimMind.Actions.Actions
             var patientRest = await ExecuteAtomicAsync("pawn.job.set", patientRestArgs, args, ct).ConfigureAwait(false);
             ct.ThrowIfCancellationRequested();
 
-            // 2. If doctor_id is provided, interrupt doctor's non-medical work so they can triage immediately
+            // 2. If doctor_id is provided (or auto-resolved on the map), direct doctor to rescue/tend patient immediately
             ToolResult doctorPrep = ToolResult.Ok("no doctor specified");
+#if !RIMMIND_ACTIONS_TESTS
+            var patientPawn = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(patientId);
+            if ((!hasDoctor || doctorId == patientId) && patientPawn?.Map != null)
+            {
+                var candidates = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(patientPawn.Map);
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    var c = candidates[i];
+                    if (c == null || c.thingIDNumber == patientId || c.Dead || c.Downed) continue;
+                    if (c.WorkTypeIsDisabled(RimWorld.WorkTypeDefOf.Doctor)) continue;
+                    doctorId = c.thingIDNumber;
+                    hasDoctor = true;
+                    break;
+                }
+            }
+#endif
             if (hasDoctor)
             {
+#if !RIMMIND_ACTIONS_TESTS
+                var docPawn = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(doctorId);
+                if (docPawn?.workSettings != null && docPawn.workSettings.EverWork && !docPawn.WorkTypeIsDisabled(RimWorld.WorkTypeDefOf.Doctor))
+                {
+                    docPawn.workSettings.EnableAndInitializeIfNotAlreadyInitialized();
+                    docPawn.workSettings.SetPriority(RimWorld.WorkTypeDefOf.Doctor, 1);
+                }
+
+                if (patientPawn != null && patientPawn.Downed && !RimWorld.RestUtility.InBed(patientPawn))
+                {
+                    var rescueArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "rescue_pawn"), ("target_pawn_id", patientId));
+                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", rescueArgs, args, ct).ConfigureAwait(false);
+                }
+                else if (patientPawn?.health != null && patientPawn.health.HasHediffsNeedingTend())
+                {
+                    var tendArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "tend_pawn"), ("target_pawn_id", patientId));
+                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", tendArgs, args, ct).ConfigureAwait(false);
+                }
+                else
+                {
+                    var doctorCancelArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "cancel_job"));
+                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct).ConfigureAwait(false);
+                }
+
+                if (doctorPrep.IsError)
+                {
+                    var doctorCancelArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "cancel_job"));
+                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct).ConfigureAwait(false);
+                }
+#else
                 var doctorCancelArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "cancel_job"));
                 doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct).ConfigureAwait(false);
+#endif
             }
 
             // No mood thought is injected: granting Catharsis on every LLM call was a free, repeatable mood buff.
@@ -97,12 +144,23 @@ namespace RimMind.Actions.Actions
                 ("patientBedRest", patientRest),
                 ("doctorTriageReady", doctorPrep));
 
+            bool noCareAvailable = false;
+#if !RIMMIND_ACTIONS_TESTS
+            // Honest outcome: a downed patient with no able doctor gets no care at all
+            // (a standing patient can still self-tend through vanilla work).
+            noCareAvailable = !hasDoctor && patientPawn != null && patientPawn.Downed;
+            if (noCareAvailable)
+            {
+                summary = $"No able-bodied colonist can rescue or tend {patientPawn!.LabelShort}; no medical care was given. {summary}";
+            }
+#endif
+
             return Result<ToolResult, RimMindError>.Ok(new ToolResult
             {
                 ToolCallId = args.ToolCallId,
                 ToolName = Id,
                 Content = summary,
-                IsError = patientRest.IsError
+                IsError = patientRest.IsError || noCareAvailable
             });
         }
     }

@@ -115,6 +115,7 @@ namespace RimMind.Actions.Actions
                 AutonomyDomain.ResourceMarking => RiskLevel.Low,
                 AutonomyDomain.WorktableBills => RiskLevel.Medium,
                 AutonomyDomain.BlueprintPlacement => RiskLevel.Medium,
+                AutonomyDomain.WorkPriorityModification => RiskLevel.Medium,
                 AutonomyDomain.HighRiskOperations => RiskLevel.High,
                 _ => RiskLevel.Medium
             };

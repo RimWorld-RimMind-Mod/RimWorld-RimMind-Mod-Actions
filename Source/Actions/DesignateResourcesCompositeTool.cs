@@ -48,7 +48,7 @@ namespace RimMind.Actions.Actions
             Id = Id,
             Category = "action",
             Description = "Autonomously designates resources on the map for colonist worktab execution (e.g. harvesting ripe wild berries/healroot, chopping mature trees for wood, or mining exposed mineral veins).",
-            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"designation_type\":{\"type\":\"string\",\"description\":\"Type of designation: 'Harvest' (ripe wild food/plants), 'ChopWood' (mature timber trees), or 'Mine' (mineral ores).\"},\"radius\":{\"type\":\"integer\",\"description\":\"Search radius in tiles from anchor colonist/base center (default: 25, max: 60).\"},\"target_name\":{\"type\":\"string\",\"description\":\"Optional filter for specific defName or label (e.g. 'Plant_Berry', 'Plant_TreeOak', 'MineableSteel').\"},\"max_count\":{\"type\":\"integer\",\"description\":\"Maximum number of items to designate in one call (default: 15, max: 50).\"},\"pawn_id\":{\"type\":\"integer\",\"description\":\"Optional colonist pawn ID to center search and check autonomy permissions.\"}},\"required\":[\"designation_type\"]}"
+            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"designation_type\":{\"type\":\"string\",\"description\":\"Type of designation: 'Harvest' (ripe wild food/plants), 'ChopWood' (mature timber trees), 'Mine' (mineral ores), or 'Hunt' (safe wild animals for meat when food is low).\"},\"radius\":{\"type\":\"integer\",\"description\":\"Search radius in tiles from anchor colonist/base center (default: 25, max: 60).\"},\"target_name\":{\"type\":\"string\",\"description\":\"Optional filter for specific defName or label (e.g. 'Plant_Berry', 'Plant_TreeOak', 'MineableSteel').\"},\"max_count\":{\"type\":\"integer\",\"description\":\"Maximum number of items to designate in one call (default: 15, max: 50).\"},\"pawn_id\":{\"type\":\"integer\",\"description\":\"Optional colonist pawn ID to center search and check autonomy permissions.\"}},\"required\":[\"designation_type\"]}"
         };
 
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
@@ -61,7 +61,7 @@ namespace RimMind.Actions.Actions
                 || string.IsNullOrWhiteSpace(designationTypeStr))
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, "Missing required parameter 'designation_type' (Harvest, ChopWood, or Mine).")));
+                    RimMindErrors.InvalidAction(Id, "Missing required parameter 'designation_type' (Harvest, ChopWood, Mine, or Hunt).")));
             }
 
 #if RIMMIND_ACTIONS_TESTS
@@ -108,8 +108,8 @@ namespace RimMind.Actions.Actions
 
             // 3. Resolve Radius and Count Limit
             TryGetArgument<int>(args.ArgumentsJson, "radius", out var radius);
-            if (radius <= 0) radius = 25;
-            radius = Math.Clamp(radius, 5, 60);
+            if (radius <= 0) radius = 60;
+            radius = Math.Clamp(radius, 5, 120);
 
             TryGetArgument<int>(args.ArgumentsJson, "max_count", out var maxCount);
             if (maxCount <= 0) maxCount = 15;
@@ -145,12 +145,12 @@ namespace RimMind.Actions.Actions
                 {
                     if (t is not Plant plant) return false;
                     if (plant.def.plant == null || plant.def.plant.IsTree || !plant.def.plant.Harvestable) return false;
-                    if (!plant.HarvestableNow && plant.Growth < 0.7f) return false;
+                    if (!plant.HarvestableNow) return false;
                     if (map.designationManager.DesignationOn(plant, desDef) != null) return false;
                     if (!string.IsNullOrWhiteSpace(targetNameFilter))
                     {
-                        if (!plant.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)
-                            && !plant.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                        if ((plant.def?.defName == null || !plant.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                            && (plant.Label == null || !plant.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)))
                             return false;
                     }
                     return true;
@@ -168,8 +168,8 @@ namespace RimMind.Actions.Actions
                     if (map.designationManager.DesignationOn(plant, desDef) != null) return false;
                     if (!string.IsNullOrWhiteSpace(targetNameFilter))
                     {
-                        if (!plant.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)
-                            && !plant.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                        if ((plant.def?.defName == null || !plant.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                            && (plant.Label == null || !plant.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)))
                             return false;
                     }
                     return true;
@@ -187,8 +187,8 @@ namespace RimMind.Actions.Actions
                     if (map.designationManager.DesignationOn(plant, desDef) != null) return false;
                     if (!string.IsNullOrWhiteSpace(targetNameFilter))
                     {
-                        if (!plant.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)
-                            && !plant.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                        if ((plant.def?.defName == null || !plant.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                            && (plant.Label == null || !plant.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)))
                             return false;
                     }
                     return true;
@@ -205,8 +205,31 @@ namespace RimMind.Actions.Actions
                     if ((desDef.targetType == TargetType.Cell ? map.designationManager.DesignationAt(t.Position, desDef) : map.designationManager.DesignationOn(t, desDef)) != null) return false;
                     if (!string.IsNullOrWhiteSpace(targetNameFilter))
                     {
-                        if (!t.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)
-                            && !t.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                        if ((t.def?.defName == null || !t.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                            && (t.Label == null || !t.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)))
+                            return false;
+                    }
+                    return true;
+                };
+            }
+            else if (mode.Contains("hunt") || mode.Contains("meat") || mode.Contains("animal"))
+            {
+                desDef = DesignationDefOf.Hunt;
+                candidatePredicate = t =>
+                {
+                    if (t is not Pawn animal || animal.Dead || animal.Downed) return false;
+                    if (animal.RaceProps == null || !animal.RaceProps.Animal || animal.RaceProps.Humanlike) return false;
+                    // Only wild animals: never colony pets/livestock or other factions' animals.
+                    if (animal.Faction != null) return false;
+                    // Safety: skip predators, manhunters, and animals likely to retaliate as manhunters.
+                    if (animal.RaceProps.predator || animal.InAggroMentalState) return false;
+                    // Hunting large or vengeful animals with starter weapons killed colonists in live playthroughs.
+                    if (animal.RaceProps.manhunterOnDamageChance > 0.1f || animal.RaceProps.baseBodySize > 1.5f) return false;
+                    if (map.designationManager.DesignationOn(animal, desDef) != null) return false;
+                    if (!string.IsNullOrWhiteSpace(targetNameFilter))
+                    {
+                        if ((animal.def?.defName == null || !animal.def.defName.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase))
+                            && (animal.Label == null || !animal.Label.Contains(targetNameFilter, StringComparison.OrdinalIgnoreCase)))
                             return false;
                     }
                     return true;
@@ -215,7 +238,7 @@ namespace RimMind.Actions.Actions
             else
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, $"Unknown designation type '{designationTypeStr}'. Supported: 'Harvest', 'ChopWood', 'Mine'.")));
+                    RimMindErrors.InvalidAction(Id, $"Unknown designation type '{designationTypeStr}'. Supported: 'Harvest', 'ChopWood', 'Mine', 'Hunt'.")));
             }
 
             // 5. Query Candidates within Radius (with automatic expansion up to map-wide 120 tiles if none within initial radius)
@@ -312,9 +335,16 @@ namespace RimMind.Actions.Actions
                             centerCell.z))));
             }
 
-            // 6. Sort by Distance and Apply Designation
+            // 6. Sort by Edible Food Priority & Distance and Apply Designation
+            bool prioritizeEdible = mode.Contains("harvest") && !targetImpliesTrees;
             var selected = candidates
-                .OrderBy(t => t.Position.DistanceToSquared(centerCell))
+                .OrderByDescending(t =>
+                {
+                    if (!prioritizeEdible || t is not Plant p) return 0;
+                    var hDef = p.def?.plant?.harvestedThingDef;
+                    return (hDef != null && hDef.IsNutritionGivingIngestible && hDef.ingestible?.HumanEdible == true) ? 1 : 0;
+                })
+                .ThenBy(t => t.Position.DistanceToSquared(centerCell))
                 .Take(maxCount)
                 .ToList();
 
@@ -323,6 +353,47 @@ namespace RimMind.Actions.Actions
             {
                 map.designationManager.AddDesignation(desDef.targetType == TargetType.Cell ? new Designation(target.Position, desDef) : new Designation(target, desDef));
                 addedCount++;
+            }
+
+            if (desDef == DesignationDefOf.Hunt)
+            {
+                // Hunting only happens if someone has the Hunting work type enabled.
+                var hunters = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map);
+                for (int i = 0; i < hunters.Count; i++)
+                {
+                    var c = hunters[i];
+                    if (c?.workSettings != null && c.workSettings.EverWork && !c.WorkTypeIsDisabled(WorkTypeDefOf.Hunting))
+                    {
+                        c.workSettings.EnableAndInitializeIfNotAlreadyInitialized();
+                        if (c.workSettings.GetPriority(WorkTypeDefOf.Hunting) == 0 || c.workSettings.GetPriority(WorkTypeDefOf.Hunting) > 2)
+                        {
+                            c.workSettings.SetPriority(WorkTypeDefOf.Hunting, 2);
+                        }
+                    }
+                }
+            }
+
+            if (desDef == DesignationDefOf.HarvestPlant || desDef == DesignationDefOf.CutPlant)
+            {
+                var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map);
+                for (int i = 0; i < colonists.Count; i++)
+                {
+                    var c = colonists[i];
+                    if (c?.workSettings != null && c.workSettings.EverWork && !c.WorkTypeIsDisabled(WorkTypeDefOf.PlantCutting))
+                    {
+                        c.workSettings.EnableAndInitializeIfNotAlreadyInitialized();
+                        c.workSettings.SetPriority(WorkTypeDefOf.PlantCutting, 1);
+                    }
+                }
+
+                if (prioritizeEdible && pawn != null && !pawn.Dead && !pawn.Downed && !pawn.Drafted
+                    && !pawn.WorkTagIsDisabled(WorkTags.PlantWork) && selected.Count > 0 && selected[0] is Plant firstPlant && firstPlant.HarvestableNow)
+                {
+                    var plantsCutGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("PlantsCut");
+                    var harvestJob = JobMaker.MakeJob(JobDefOf.HarvestDesignated, new LocalTargetInfo(firstPlant));
+                    harvestJob.workGiverDef = plantsCutGiver;
+                    pawn.jobs?.StartJob(harvestJob, Verse.AI.JobCondition.InterruptForced);
+                }
             }
 
             string targetSample = string.Join(", ", selected.Take(3).Select(t => t.LabelShort));

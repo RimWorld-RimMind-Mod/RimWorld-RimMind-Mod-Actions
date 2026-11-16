@@ -141,11 +141,17 @@ namespace RimMind.Actions.Actions
                 TryGetArgument<string>(args.ArgumentsJson, "crop_def", out var cropDefName);
                 if (string.IsNullOrWhiteSpace(cropDefName)) cropDefName = "Plant_Rice";
 
-                var plantDef = DefDatabase<ThingDef>.GetNamedSilentFail(cropDefName.Trim());
+                var trimmedCrop = cropDefName.Trim();
+                var plantDef = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedCrop);
                 if (plantDef == null || plantDef.plant == null)
                 {
-                    plantDef = DefDatabase<ThingDef>.GetNamedSilentFail("Plant_Rice")
-                               ?? DefDatabase<ThingDef>.AllDefsListForReading.FirstOrDefault(d => d.plant != null);
+                    plantDef = DefDatabase<ThingDef>.AllDefsListForReading
+                        .FirstOrDefault(d => d?.plant != null
+                                          && (string.Equals(d.defName, trimmedCrop, StringComparison.OrdinalIgnoreCase)
+                                           || string.Equals(d.defName, "Plant_" + trimmedCrop, StringComparison.OrdinalIgnoreCase)
+                                           || string.Equals(d.label, trimmedCrop, StringComparison.OrdinalIgnoreCase)))
+                        ?? DefDatabase<ThingDef>.GetNamedSilentFail("Plant_Rice")
+                        ?? DefDatabase<ThingDef>.AllDefsListForReading.FirstOrDefault(d => d?.plant != null);
                 }
 
                 if (plantDef == null)
@@ -178,6 +184,17 @@ namespace RimMind.Actions.Actions
                     "RimMind.Actions.Zone.GrowZoneDetail",
                     "Growing Zone (crop: {0}, cells: {1})",
                     plantDef.label, growZone.cells.Count);
+
+                var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map);
+                for (int i = 0; i < colonists.Count; i++)
+                {
+                    var c = colonists[i];
+                    if (c?.workSettings != null && c.workSettings.EverWork && !c.WorkTypeIsDisabled(WorkTypeDefOf.Growing))
+                    {
+                        c.workSettings.EnableAndInitializeIfNotAlreadyInitialized();
+                        c.workSettings.SetPriority(WorkTypeDefOf.Growing, 1);
+                    }
+                }
             }
             else
             {
