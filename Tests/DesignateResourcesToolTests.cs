@@ -51,6 +51,18 @@ namespace RimMind.Actions.Tests
             Assert.Contains("DesignationDefOf.CutPlant", source);
             Assert.Contains("DesignationDefOf.Mine", source);
             Assert.Contains("AddDesignation", source);
+            Assert.Contains("MatchesTargetFilter", source);
+        }
+
+        [Fact]
+        public void No_CompositeTool_Mutates_Player_WorkPriorities_Via_SetPriority()
+        {
+            var actionsDir = Path.Combine(RepoRoot, "RimMind-Actions", "Source", "Actions");
+            foreach (var file in Directory.GetFiles(actionsDir, "*.cs"))
+            {
+                var source = File.ReadAllText(file);
+                Assert.DoesNotContain(".SetPriority(", source);
+            }
         }
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
@@ -8,20 +7,17 @@ using Newtonsoft.Json.Linq;
 using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
-using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
-using RimMind.Presentation.Api;
 #if !RIMMIND_ACTIONS_TESTS
 using RimMind.Actions.Spatial;
 using RimWorld;
-using Verse.AI;
 #endif
 using Verse;
 
 namespace RimMind.Actions.Actions
 {
     /// <summary>
-    /// Composite action tool that places a building blueprint with smart obstacle clearance,
+    /// Composite action tool that places a building blueprint with smart footprint/interaction-cell placement,
     /// automatic stockpile material detection, and immediate colonist construction intent chaining.
     /// </summary>
     public sealed class PlaceBlueprintCompositeTool : CompositeToolCallBase
@@ -41,6 +37,7 @@ namespace RimMind.Actions.Actions
         };
 
         protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.BlueprintPlacement;
+        protected override ToolScope? ToolScopes => ToolScope.ColonyBuild;
         protected override IReadOnlyList<string> ToolAliases => Aliases;
         protected override bool IsSelfTargetedTool => false;
         protected override string? DisplayName => "Place Blueprint";
@@ -57,20 +54,14 @@ namespace RimMind.Actions.Actions
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
 
         protected override AutonomyDomain? ResolveAutonomyDomain(JObject? root, ToolCallArgs args)
-        {
-            string? buildingDefName = root?["building_def"]?.ToString();
-            if (string.IsNullOrWhiteSpace(buildingDefName) && args != null)
-            {
-                TryGetArgument<string>(args.ArgumentsJson, "building_def", out buildingDefName);
-            }
-            return AutonomyDomain.BlueprintPlacement;
-        }
+            => AutonomyDomain.BlueprintPlacement;
 
         public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(
             ToolCallArgs args,
             CancellationToken ct)
         {
-            if (!TryGetArgument<string>(args.ArgumentsJson, "building_def", out var buildingDefName)
+            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
+            if (!TryGetArgument<string>(argsRoot, "building_def", out var buildingDefName)
                 || string.IsNullOrWhiteSpace(buildingDefName))
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -78,9 +69,9 @@ namespace RimMind.Actions.Actions
             }
 
 #if RIMMIND_ACTIONS_TESTS
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.BlueprintPlacement;
-            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
             {
                 var guard = GuardColonistTarget(testPawnId, domain, args);
                 if (guard.IsErr)
@@ -91,7 +82,7 @@ namespace RimMind.Actions.Actions
             return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
                 ToolResult.Ok($"Placed {buildingDefName}", args.ToolCallId, Id)));
 #else
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
             if (actorResolution.Error != null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -106,25 +97,14 @@ namespace RimMind.Actions.Actions
             }
 
             // 1. Resolve BuildableDef
-            var trimmedBuildingName = buildingDefName.Trim();
-            var thingDef = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedBuildingName);
-            if (thingDef == null)
-            {
-                // Fallback: null-safe case-insensitive search
-                thingDef = DefDatabase<ThingDef>.AllDefsListForReading
-                    .FirstOrDefault(d => d != null
-                                      && (string.Equals(d.defName, trimmedBuildingName, StringComparison.OrdinalIgnoreCase)
-                                       || string.Equals(d.label, trimmedBuildingName, StringComparison.OrdinalIgnoreCase)));
-            }
-
+            var thingDef = ConstructionIntentChainer.ResolveThingDef(buildingDefName);
             if (thingDef == null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
                     RimMindErrors.InvalidDefName($"Building '{buildingDefName}' not found. Call actions_query_buildable_structures to see valid buildable defs.")));
             }
 
-            // The label fallback above searches every ThingDef (items, plants...): only accept player-buildable,
-            // research-unlocked buildings.
+            // Only accept player-buildable, research-unlocked buildings.
             if (thingDef.category != ThingCategory.Building || !thingDef.BuildableByPlayer || !thingDef.IsResearchFinished)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -132,50 +112,14 @@ namespace RimMind.Actions.Actions
             }
 
             // 2. Auto-Stuff Selection (Stockpile-Aware)
-            ThingDef? selectedStuff = null;
-            TryGetArgument<string>(args.ArgumentsJson, "stuff_def", out var stuffDefName);
-            if (!string.IsNullOrWhiteSpace(stuffDefName))
-            {
-                var trimmedStuffName = stuffDefName.Trim();
-                selectedStuff = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedStuffName)
-                    ?? DefDatabase<ThingDef>.AllDefsListForReading
-                        .FirstOrDefault(d => d != null
-                                          && (string.Equals(d.defName, trimmedStuffName, StringComparison.OrdinalIgnoreCase)
-                                           || string.Equals(d.label, trimmedStuffName, StringComparison.OrdinalIgnoreCase)));
-                // Discard LLM-supplied stuff that this building cannot be made from; auto-selection below takes over.
-                if (selectedStuff != null && (!thingDef.MadeFromStuff || !GenStuff.AllowedStuffsFor(thingDef).Contains(selectedStuff)))
-                {
-                    selectedStuff = null;
-                }
-            }
-
-            if (thingDef.MadeFromStuff)
-            {
-                if (selectedStuff == null)
-                {
-                    // Scan valid stuffs for this building and pick the one with highest available count on map
-                    var validStuffs = GenStuff.AllowedStuffsFor(thingDef).ToList();
-                    selectedStuff = validStuffs
-                        .OrderByDescending(s => ResourceSafetyGuard.GetAvailableCount(map, s))
-                        .FirstOrDefault();
-
-                    if (selectedStuff == null || ResourceSafetyGuard.GetAvailableCount(map, selectedStuff) <= 0)
-                    {
-                        selectedStuff = GenStuff.DefaultStuffFor(thingDef) ?? ThingDefOf.WoodLog ?? ThingDefOf.Steel;
-                    }
-                }
-            }
-            else
-            {
-                selectedStuff = null;
-            }
+            TryGetArgument<string>(argsRoot, "stuff_def", out var stuffDefName);
+            ThingDef? selectedStuff = ConstructionIntentChainer.ResolveStuffForBuilding(thingDef, stuffDefName, map);
 
             // 3. Anchor and Placement Position
             Pawn? anchorPawn = actorResolution.Pawn;
 
             // Autonomy Permission & Resource Safety Guards
-            var autonomyDomain = AutonomyDomain.BlueprintPlacement;
-            var permCheck = ActionPermissionGuard.CheckPermission(anchorPawn, Id, autonomyDomain, args);
+            var permCheck = ActionPermissionGuard.CheckPermission(anchorPawn, Id, AutonomyDomain.BlueprintPlacement, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
@@ -188,7 +132,7 @@ namespace RimMind.Actions.Actions
             }
 
             IntVec3 anchorPos = (anchorPawn != null && anchorPawn.Position.InHorDistOf(map.Center, 28f)) ? anchorPawn.Position : map.Center;
-            TryGetArgument<string>(args.ArgumentsJson, "location_hint", out var locationHint);
+            TryGetArgument<string>(argsRoot, "location_hint", out var locationHint);
             locationHint = string.IsNullOrWhiteSpace(locationHint) ? "near_base" : locationHint.ToLowerInvariant().Trim();
 
             var rot = Rot4.North;
@@ -239,32 +183,22 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.Internal($"Blueprint for '{thingDef.defName}' could not be spawned at {targetCell}.")));
             }
 
-            // 5. Immediate Construction Chaining via Intent Lease (Shortcoming 2 Solution)
-            TryGetArgument<bool>(args.ArgumentsJson, "auto_construct", out var autoConstruct);
-            // Default to true if not explicitly set to false
-            if (args.ArgumentsJson == null || !args.ArgumentsJson.Contains("auto_construct"))
-            {
-                autoConstruct = true;
-            }
+            // 5. Immediate Construction Chaining via Shared ConstructionIntentChainer
+            bool autoConstruct = !TryGetArgument<bool>(argsRoot, "auto_construct", out var parsedAutoConstruct) || parsedAutoConstruct;
 
             bool sessionStarted = false;
             string builderName = "None";
 
             if (autoConstruct && anchorPawn != null)
             {
-                int startTick = Find.TickManager?.TicksGame ?? 0;
-                sessionStarted = RimMindAPI.Agent.StartIntentSession(
-                    pawn: anchorPawn,
+                sessionStarted = ConstructionIntentChainer.TryChainSingleBlueprint(
+                    anchorPawn,
+                    map,
+                    blueprint,
+                    targetCell,
                     intentId: $"Construct_{thingDef.defName}",
-                    startTick: startTick,
-                    durationTicks: 2500, // 1 in-game hour lease
-                    priority: 7.8f,
-                    target: blueprint,
-                    jobProvider: p => IssueConstructionSubJob(p, map, blueprint, targetCell),
-                    completionPredicate: p =>
-                        map == null
-                        || ((blueprint == null || blueprint.Destroyed || !blueprint.Spawned)
-                            && !targetCell.GetThingList(map).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned)));
+                    durationTicks: 2500,
+                    priority: 7.8f);
                 if (sessionStarted)
                 {
                     builderName = anchorPawn.Name?.ToStringShort ?? anchorPawn.Label;
@@ -332,19 +266,21 @@ namespace RimMind.Actions.Actions
                 ? new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West }
                 : new[] { Rot4.North };
 
-            // 1. Spatial topology + peer-furniture clustering solver (replaces random spawn-adjacent placement)
+            // 1. Spatial topology + peer-furniture clustering solver using real footprint & interaction cell
             try
             {
                 ColonySpatialSnapshot snapshot = MapSpatialSnapshotBuilder.Build(map, anchor.x, anchor.z, radius: 26);
                 bool isBed = def.thingClass != null && typeof(Building_Bed).IsAssignableFrom(def.thingClass);
                 bool isWorkTable = def.thingClass != null && typeof(Building_WorkTable).IsAssignableFrom(def.thingClass);
                 bool isTable = def.surfaceType == SurfaceType.Eat;
+                bool isJoy = def.building?.joyKind != null;
                 bool isDefense = (def.building != null && def.building.IsTurret) || def.passability == Traversability.PassThroughOnly;
-                SpatialBuildingCategory category = ColonySpatialClusterSolver.ClassifyBuilding(
+                SpatialBuildingCategory category = SpatialBuildingClassifier.Classify(
                     def.defName,
                     isBed: isBed,
                     isWorkTable: isWorkTable,
                     isTable: isTable,
+                    isJoy: isJoy,
                     isDefense: isDefense);
 
                 SpatialCandidateScore? bestOverall = null;
@@ -352,13 +288,22 @@ namespace RimMind.Actions.Actions
 
                 foreach (Rot4 candidateRot in rotations)
                 {
+                    CellRect occupied = GenAdj.OccupiedRect(IntVec3.Zero, candidateRot, def.Size);
+                    IntVec3 interactionOffset = def.hasInteractionCell
+                        ? def.interactionCellOffset.RotatedBy(candidateRot)
+                        : IntVec3.Zero;
+
                     var req = new SpatialPlacementRequest
                     {
                         BuildingDefName = def.defName ?? string.Empty,
                         Category = category,
-                        SizeX = 1,
-                        SizeZ = 1,
-                        HasInteractionCell = false,
+                        SizeX = Math.Max(1, occupied.Width),
+                        SizeZ = Math.Max(1, occupied.Height),
+                        FootprintMinOffsetX = occupied.minX,
+                        FootprintMinOffsetZ = occupied.minZ,
+                        HasInteractionCell = def.hasInteractionCell,
+                        InteractionOffsetX = interactionOffset.x,
+                        InteractionOffsetZ = interactionOffset.z,
                         LocationHint = hint,
                         AnchorX = anchor.x,
                         AnchorZ = anchor.z
@@ -437,97 +382,6 @@ namespace RimMind.Actions.Actions
             clusterRoomId = 0;
             return IntVec3.Invalid;
         }
-
-        private static Job? IssueConstructionSubJob(Pawn pawn, Map map, Blueprint_Build blueprint, IntVec3 targetCell)
-        {
-            if (pawn == null || map == null || !targetCell.IsValid || !targetCell.InBounds(map)) return null;
-
-            // Respect the player's work tab: never rewrite priorities. Pawns that cannot or are not assigned to
-            // construct are skipped; vanilla construction workers will still pick up the placed blueprint.
-            if (pawn.WorkTypeIsDisabled(WorkTypeDefOf.Construction)
-                || (pawn.workSettings != null && !pawn.workSettings.WorkIsActive(WorkTypeDefOf.Construction)))
-            {
-                return null;
-            }
-
-            try
-            {
-                // Step 1: If blueprint is still active, try delivering resources then finishing frame
-                if (blueprint != null && !blueprint.Destroyed && blueprint.Spawned)
-                {
-                    if (pawn.CanReserveAndReach(blueprint, PathEndMode.Touch, Danger.Some))
-                    {
-                        var deliverBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints")?.Worker as WorkGiver_Scanner
-                            ?? new WorkGiver_ConstructDeliverResourcesToBlueprints();
-                        var haulJob = deliverBpGiver.JobOnThing(pawn, blueprint, true);
-                        if (haulJob != null) return haulJob;
-
-                        var finishBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
-                            ?? new WorkGiver_ConstructFinishFrames();
-                        var finishBpJob = finishBpGiver.JobOnThing(pawn, blueprint, true);
-                        if (finishBpJob != null) return finishBpJob;
-                    }
-                    return null;
-                }
-
-                // Step 2: Blueprint was replaced by a Frame at targetCell
-                Frame? frame = targetCell.GetThingList(map).OfType<Frame>().FirstOrDefault(f => !f.Destroyed && f.Spawned);
-                if (frame != null && pawn.CanReserveAndReach(frame, PathEndMode.Touch, Danger.Some))
-                {
-                    var deliverFrameGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToFrames")?.Worker as WorkGiver_Scanner
-                        ?? new WorkGiver_ConstructDeliverResourcesToFrames();
-                    var deliverJob = deliverFrameGiver.JobOnThing(pawn, frame, true);
-                    if (deliverJob != null) return deliverJob;
-
-                    var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
-                        ?? new WorkGiver_ConstructFinishFrames();
-                    var finishJob = finishGiver.JobOnThing(pawn, frame, true);
-                    if (finishJob != null) return finishJob;
-                }
-            }
-            catch
-            {
-                return null;
-            }
-
-            return null;
-        }
 #endif
-
-        private static bool IsEssentialSurvivalStructure(string? defName)
-        {
-            if (string.IsNullOrWhiteSpace(defName)) return false;
-            return defName!.Equals("Bed", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Bedroll", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("DoubleBed", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("RoyalBed", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("HospitalBed", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("SleepingSpot", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("DoubleSleepingSpot", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Campfire", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("TorchLamp", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("PassiveCooler", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Heater", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Wall", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Door", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Autodoor", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Sandbags", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Barricade", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("TableShort", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Table1x2c", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Table2x2c", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Table2x4c", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("DiningChair", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Stool", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("Armchair", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("HoopstoneRing", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("HorseshoesPin", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("ChessTable", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("FueledStove", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("ElectricStove", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("ButcherSpot", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("TableButcher", StringComparison.OrdinalIgnoreCase)
-                || defName.Equals("SimpleResearchBench", StringComparison.OrdinalIgnoreCase);
-        }
     }
 }

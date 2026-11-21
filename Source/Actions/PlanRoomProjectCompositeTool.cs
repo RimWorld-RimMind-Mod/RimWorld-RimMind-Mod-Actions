@@ -3,17 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
-using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
-using RimMind.Presentation.Api;
 #if !RIMMIND_ACTIONS_TESTS
+using RimMind.Presentation.Api;
 using RimWorld;
-using Verse.AI;
 #endif
 using Verse;
 
@@ -22,7 +19,7 @@ namespace RimMind.Actions.Actions
     /// <summary>
     /// Composite tool that autonomously plans and executes an integrated micro-room construction project
     /// (e.g. 5x5 emergency shelter: 4 walls + 1 door + 1 bed + 1 torch)
-    /// binding all sub-blueprints into a unified AgentIntentSession.
+    /// binding all sub-blueprints into a unified AgentIntentSession via <see cref="ConstructionIntentChainer"/>.
     /// </summary>
     public sealed class PlanRoomProjectCompositeTool : CompositeToolCallBase
     {
@@ -40,6 +37,7 @@ namespace RimMind.Actions.Actions
         };
 
         protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.BlueprintPlacement;
+        protected override ToolScope? ToolScopes => ToolScope.ColonyBuild;
         protected override IReadOnlyList<string> ToolAliases => Aliases;
         protected override bool IsSelfTargetedTool => false;
         protected override string? DisplayName => "Plan Room Project";
@@ -56,28 +54,17 @@ namespace RimMind.Actions.Actions
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
 
         protected override AutonomyDomain? ResolveAutonomyDomain(JObject? root, ToolCallArgs args)
-        {
-            string? roomType = root?["room_type"]?.ToString();
-            if (string.IsNullOrWhiteSpace(roomType) && args != null)
-            {
-                TryGetArgument<string>(args.ArgumentsJson, "room_type", out roomType);
-            }
-            if (string.IsNullOrWhiteSpace(roomType))
-            {
-                roomType = "Shelter";
-            }
-
-            return AutonomyDomain.BlueprintPlacement;
-        }
+            => AutonomyDomain.BlueprintPlacement;
 
         public override Task<Result<ToolResult, RimMindError>> ExecuteAsync(
             ToolCallArgs args,
             CancellationToken ct)
         {
+            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
 #if RIMMIND_ACTIONS_TESTS
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.BlueprintPlacement;
-            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
             {
                 var guard = GuardColonistTarget(testPawnId, domain, args);
                 if (guard.IsErr)
@@ -88,7 +75,7 @@ namespace RimMind.Actions.Actions
             return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
                 ToolResult.Ok("Planned room", args.ToolCallId, Id)));
 #else
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: false);
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: false, parsedArgs: argsRoot);
             if (actorResolution.Error != null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -106,45 +93,37 @@ namespace RimMind.Actions.Actions
             Pawn? builderPawn = actorResolution.Pawn;
             if (builderPawn == null)
             {
-                // Pick active colonist with highest construction skill
-                builderPawn = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map)
-                    .Where(p => RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
+                builderPawn = RimMindPawnLookup.GetSpawnedColonistsSafe(map)
+                    .Where(p => RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
                     .OrderByDescending(p => p.skills?.GetSkill(SkillDefOf.Construction)?.Level ?? 0)
                     .FirstOrDefault();
             }
 
             // 2. Resolve Room Type & Autonomy Permission Guard
-            TryGetArgument<string>(args.ArgumentsJson, "room_type", out var roomType);
+            TryGetArgument<string>(argsRoot, "room_type", out var roomType);
             if (string.IsNullOrWhiteSpace(roomType)) roomType = "Shelter";
 
-            var roomAutonomyDomain = AutonomyDomain.BlueprintPlacement;
-
-            var permCheck = ActionPermissionGuard.CheckPermission(builderPawn, Id, roomAutonomyDomain, args);
+            var permCheck = ActionPermissionGuard.CheckPermission(builderPawn, Id, AutonomyDomain.BlueprintPlacement, args);
             if (!permCheck.IsOk)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
             }
 
             // 3. Resolve Size and Materials
-            TryGetArgument<int>(args.ArgumentsJson, "size", out var size);
+            TryGetArgument<int>(argsRoot, "size", out var size);
             if (size <= 0) size = 5;
-            size = Math.Clamp(size, 4, 9);
+            size = Math.Max(4, Math.Min(9, size));
 
-            TryGetArgument<string>(args.ArgumentsJson, "stuff_def", out var stuffDefName);
-            ThingDef? selectedStuff = null;
-            if (!string.IsNullOrWhiteSpace(stuffDefName))
+            TryGetArgument<string>(argsRoot, "stuff_def", out var stuffDefName);
+            ThingDef? selectedStuff = ConstructionIntentChainer.ResolveThingDef(stuffDefName);
+            if (selectedStuff != null && !GenStuff.AllowedStuffsFor(ThingDefOf.Wall).Contains(selectedStuff))
             {
-                var trimmedStuff = stuffDefName.Trim();
-                selectedStuff = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedStuff)
-                    ?? DefDatabase<ThingDef>.AllDefsListForReading
-                        .FirstOrDefault(d => d != null
-                                          && (string.Equals(d.defName, trimmedStuff, StringComparison.OrdinalIgnoreCase)
-                                           || string.Equals(d.label, trimmedStuff, StringComparison.OrdinalIgnoreCase)));
+                selectedStuff = null;
             }
             if (selectedStuff == null)
             {
-                int woodCount = ResourceSafetyGuard.GetAvailableCount(map, ThingDefOf.WoodLog);
-                int steelCount = ResourceSafetyGuard.GetAvailableCount(map, ThingDefOf.Steel);
+                int woodCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
+                int steelCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
                 selectedStuff = woodCount >= steelCount ? ThingDefOf.WoodLog : ThingDefOf.Steel;
             }
 
@@ -196,11 +175,9 @@ namespace RimMind.Actions.Actions
             }
 
             // Interior Bed
-            TryGetArgument<bool>(args.ArgumentsJson, "include_bed", out var includeBed);
-            if (!args.ArgumentsJson.Contains("\"include_bed\""))
-            {
-                includeBed = !string.Equals(roomType, "Storage", StringComparison.OrdinalIgnoreCase);
-            }
+            bool includeBed = TryGetArgument<bool>(argsRoot, "include_bed", out var parsedIncludeBed)
+                ? parsedIncludeBed
+                : !string.Equals(roomType, "Storage", StringComparison.OrdinalIgnoreCase);
             if (includeBed)
             {
                 IntVec3 bedCell = new IntVec3(bestRect.minX + 1, 0, bestRect.maxZ - 1);
@@ -220,71 +197,21 @@ namespace RimMind.Actions.Actions
                 if (torchBp != null) placedBlueprints.Add(torchBp);
             }
 
-            // 7. Chain Unified AgentIntentSession on Builder Colonist
+            // 7. Chain Unified AgentIntentSession via Shared ConstructionIntentChainer
             bool sessionChained = false;
             string builderName = builderPawn?.LabelShort ?? "Colonist";
 
             if (builderPawn != null && placedBlueprints.Count > 0)
             {
-                var firstBp = placedBlueprints[0];
-                Map projectMap = map;
                 var targetCells = placedBlueprints.Select(b => b.Position).Distinct().ToList();
-                sessionChained = RimMindAPI.Agent.StartIntentSession(
-                    pawn: builderPawn,
+                sessionChained = ConstructionIntentChainer.TryChainProject(
+                    builderPawn,
+                    map,
+                    placedBlueprints,
+                    targetCells,
                     intentId: $"Project_Shelter_{bestRect.CenterCell.x}_{bestRect.CenterCell.z}",
-                    startTick: Find.TickManager?.TicksGame ?? 0,
                     durationTicks: 5000,
-                    priority: 7.8f,
-                    target: firstBp,
-                    jobProvider: p =>
-                    {
-                        if (p == null || projectMap == null) return null;
-                        // Respect the player's work tab: never rewrite priorities.
-                        if (p.WorkTypeIsDisabled(WorkTypeDefOf.Construction)
-                            || (p.workSettings != null && !p.workSettings.WorkIsActive(WorkTypeDefOf.Construction)))
-                        {
-                            return null;
-                        }
-
-                        var deliverBpGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToBlueprints")?.Worker as WorkGiver_Scanner
-                            ?? new WorkGiver_ConstructDeliverResourcesToBlueprints();
-                        var deliverFrameGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructDeliverResourcesToFrames")?.Worker as WorkGiver_Scanner
-                            ?? new WorkGiver_ConstructDeliverResourcesToFrames();
-                        var finishGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("ConstructFinishFrames")?.Worker as WorkGiver_Scanner
-                            ?? new WorkGiver_ConstructFinishFrames();
-
-                        foreach (var bp in placedBlueprints)
-                        {
-                            if (bp == null || bp.Destroyed || !bp.Spawned) continue;
-                            if (!p.CanReserveAndReach(bp, PathEndMode.Touch, Danger.Some)) continue;
-
-                            var haulJob = deliverBpGiver.JobOnThing(p, bp, true);
-                            if (haulJob != null) return haulJob;
-
-                            var finishBpJob = finishGiver.JobOnThing(p, bp, true);
-                            if (finishBpJob != null) return finishBpJob;
-                        }
-
-                        foreach (var cell in targetCells)
-                        {
-                            if (!cell.InBounds(projectMap)) continue;
-                            var frame = cell.GetThingList(projectMap).OfType<Frame>().FirstOrDefault(f => !f.Destroyed && f.Spawned);
-                            if (frame == null || !p.CanReserveAndReach(frame, PathEndMode.Touch, Danger.Some)) continue;
-
-                            var deliverJob = deliverFrameGiver.JobOnThing(p, frame, true);
-                            if (deliverJob != null) return deliverJob;
-
-                            var finishJob = finishGiver.JobOnThing(p, frame, true);
-                            if (finishJob != null) return finishJob;
-                        }
-
-                        return null;
-                    },
-                    completionPredicate: p =>
-                        projectMap == null
-                        || (placedBlueprints.All(b => b == null || b.Destroyed || !b.Spawned)
-                            && !targetCells.Any(cell => cell.InBounds(projectMap)
-                                && cell.GetThingList(projectMap).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned))));
+                    priority: 7.8f);
             }
 
             string planMsg = ActionPermissionGuard.TranslateOrFallback(

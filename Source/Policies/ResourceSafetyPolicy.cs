@@ -2,7 +2,7 @@ using System;
 using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
 #if !RIMMIND_ACTIONS_TESTS
-using Verse;
+using RimMind.Presentation.Api;
 #endif
 
 namespace RimMind.Actions.Policies
@@ -19,19 +19,10 @@ namespace RimMind.Actions.Policies
         public static string TranslateOrFallback(string key, string fallbackEn, params object[] args)
         {
 #if !RIMMIND_ACTIONS_TESTS
-            try
-            {
-                if (!string.IsNullOrEmpty(key) && key.CanTranslate())
-                {
-                    string template = key.TranslateSimple();
-                    return args != null && args.Length > 0 ? string.Format(template, args) : template;
-                }
-            }
-            catch
-            {
-            }
-#endif
+            return RimMindAPI.Text.TrOr(key, fallbackEn, args);
+#else
             return args != null && args.Length > 0 ? string.Format(fallbackEn, args) : fallbackEn;
+#endif
         }
 
         /// <summary>

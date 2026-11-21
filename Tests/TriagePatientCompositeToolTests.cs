@@ -8,6 +8,7 @@ using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
 using Xunit;
+using CompositeToolCallBase = RimMind.Actions.Actions.CompositeToolCallBase;
 
 namespace RimMind.Actions.Tests
 {

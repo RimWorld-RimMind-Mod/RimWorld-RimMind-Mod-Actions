@@ -1,7 +1,7 @@
-using System;
 using System.Linq;
 using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
+using RimMind.Presentation.Api;
 using RimWorld;
 using Verse;
 
@@ -9,7 +9,7 @@ namespace RimMind.Actions.Policies
 {
     /// <summary>
     /// Circuit-breaker guard ensuring autonomous agent actions never breach colony survival baselines.
-    /// Bridges in-game Map state with pure ResourceSafetyPolicy.
+    /// Bridges in-game Map state with pure ResourceSafetyPolicy and Core MapResourceCounter.
     /// </summary>
     public static class ResourceSafetyGuard
     {
@@ -24,29 +24,10 @@ namespace RimMind.Actions.Policies
             => ResourceSafetyPolicy.EvaluateBlueprintCapacity(activeBlueprintCount);
 
         /// <summary>
-        /// Counts total available unforbidden units of a resource on the map (including both stockpile and unhauled map stacks).
+        /// Counts total available unforbidden units of a resource on the map via Core <see cref="MapResourceCounter"/>.
         /// </summary>
         public static int GetAvailableCount(Map? map, ThingDef? def)
-        {
-            if (map == null || def == null) return 0;
-            int counted = map.resourceCounter?.GetCount(def) ?? 0;
-            var spawnedList = map.listerThings?.ThingsOfDef(def);
-            if (spawnedList != null && spawnedList.Count > 0)
-            {
-                int unforbiddenTotal = 0;
-                for (int i = 0; i < spawnedList.Count; i++)
-                {
-                    var t = spawnedList[i];
-                    if (t != null && t.Spawned && !t.Destroyed && !t.Position.Fogged(map) && !t.IsForbidden(Faction.OfPlayer))
-                    {
-                        unforbiddenTotal += t.stackCount;
-                    }
-                }
-                if (unforbiddenTotal > counted)
-                    counted = unforbiddenTotal;
-            }
-            return counted;
-        }
+            => MapResourceCounter.GetAvailableCount(map, def);
 
         /// <summary>
         /// In-game evaluation of map conditions against safety guard.
@@ -68,8 +49,8 @@ namespace RimMind.Actions.Policies
             }
 
             // 2. Resource reserve check
-            int currentWood = GetAvailableCount(map, ThingDefOf.WoodLog);
-            int currentSteel = GetAvailableCount(map, ThingDefOf.Steel);
+            int currentWood = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
+            int currentSteel = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
             string? stuffName = stuffDef?.defName;
 
             return ResourceSafetyPolicy.EvaluateReserves(currentWood, currentSteel, stuffName);

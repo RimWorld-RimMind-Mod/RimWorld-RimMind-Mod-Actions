@@ -44,15 +44,18 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
-        public void PlaceBlueprint_Integrates_AgentIntentSession_Chaining()
+        public void PlaceBlueprint_Integrates_Shared_ConstructionIntentChainer_And_Real_Footprint()
         {
             var source = ReadActionsSource(Path.Combine("Actions", "PlaceBlueprintCompositeTool.cs"));
-            Assert.Contains("RimMindAPI.Agent.StartIntentSession", source);
+            var chainerSource = ReadActionsSource(Path.Combine("Actions", "ConstructionIntentChainer.cs"));
             Assert.DoesNotContain("using RimMind.Infrastructure", source);
-            Assert.Contains("IssueConstructionSubJob(p, map, blueprint, targetCell)", source);
-            Assert.Contains("targetCell.GetThingList(map).OfType<Frame>().Any(f => !f.Destroyed && f.Spawned)", source);
-            Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", source);
-            Assert.Contains("StartIntentSession", source);
+            Assert.DoesNotContain("using RimMind.Infrastructure", chainerSource);
+            Assert.Contains("ConstructionIntentChainer.TryChainSingleBlueprint", source);
+            Assert.Contains("RimMindAPI.Agent.StartIntentSession", chainerSource);
+            Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", chainerSource);
+            Assert.Contains("GenAdj.OccupiedRect(IntVec3.Zero, candidateRot, def.Size)", source);
+            Assert.Contains("HasInteractionCell = def.hasInteractionCell", source);
+            Assert.DoesNotContain("IsEssentialSurvivalStructure", source);
         }
 
         [Fact]

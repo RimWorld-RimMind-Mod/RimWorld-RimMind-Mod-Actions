@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using RimMind.Actions.Policies;
 using Xunit;
 
 namespace RimMind.Actions.Tests
@@ -49,15 +51,101 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
-        public void QueryBuildableStructures_Provides_Curated_Structure_Entries()
+        public void QueryBuildableStructures_Uses_Dynamic_DefDatabase_Discovery_Instead_Of_Hardcoded_List()
         {
             var source = ReadActionsSource(Path.Combine("Actions", "QueryBuildableStructuresCompositeTool.cs"));
-            Assert.Contains("GetCuratedStructures", source);
-            Assert.Contains("Bed", source);
-            Assert.Contains("PassiveCooler", source);
-            Assert.Contains("FueledStove", source);
-            Assert.Contains("HorseshoePin", source);
-            Assert.Contains("PenMarker", source);
+            Assert.Contains("DefDatabase<ThingDef>.AllDefsListForReading", source);
+            Assert.Contains("BuildableByPlayer", source);
+            Assert.Contains("IsResearchFinished", source);
+            Assert.Contains("BuildableStructureCatalogPolicy.FilterAndProject", source);
+            Assert.DoesNotContain("GetCuratedStructures", source);
+            Assert.DoesNotContain("\"HorseshoePin\"", source);
+            Assert.DoesNotContain("\"ResearchBench\"", source);
+        }
+
+        [Fact]
+        public void BuildableStructureCatalogPolicy_Classifies_Vanilla_And_Modded_Buildings_Accurately()
+        {
+            Assert.Equal("production", BuildableStructureCatalogPolicy.ClassifyCategory("Production", "SimpleResearchBench", isWorkTable: true));
+            Assert.Equal("recreation", BuildableStructureCatalogPolicy.ClassifyCategory("Joy", "HorseshoesPin", isJoy: true));
+            Assert.Equal("furniture", BuildableStructureCatalogPolicy.ClassifyCategory("Furniture", "Bed", isBed: true));
+            Assert.Equal("temperature", BuildableStructureCatalogPolicy.ClassifyCategory("Temperature", "PassiveCooler", isTempControl: true));
+            Assert.Equal("livestock", BuildableStructureCatalogPolicy.ClassifyCategory("Structure", "PenMarker", isFenceOrPen: true));
+            Assert.Equal("production", BuildableStructureCatalogPolicy.ClassifyCategory("Production", "Modded_AutoSmelter", isWorkTable: true));
+            Assert.Equal("power", BuildableStructureCatalogPolicy.ClassifyCategory("Power", "Modded_SolarTurbine", generatesPower: true));
+        }
+
+        [Fact]
+        public void BuildableStructureCatalogPolicy_Filters_FormatsCosts_And_EvaluatesAffordability()
+        {
+            var stock = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["WoodLog"] = 120,
+                ["Steel"] = 30,
+                ["ComponentIndustrial"] = 1
+            };
+
+            var descriptors = new[]
+            {
+                new BuildableStructureDescriptor
+                {
+                    DefName = "SimpleResearchBench",
+                    Label = "simple research bench",
+                    Category = "production",
+                    CostStuffCount = 75,
+                    BestStuffLabel = "WoodLog",
+                    BestStuffAvailable = 120,
+                    FixedCosts = new[] { new BuildableMaterialCost("Steel", "Steel", 25) },
+                    Purpose = "A simple bench with writing implements and low-tech scientific tools."
+                },
+                new BuildableStructureDescriptor
+                {
+                    DefName = "HorseshoesPin",
+                    Label = "horseshoes pin",
+                    Category = "recreation",
+                    CostStuffCount = 10,
+                    BestStuffLabel = "WoodLog",
+                    BestStuffAvailable = 120,
+                    Purpose = "A simple ancient game played with a few horseshoes and a large pin stuck in the ground."
+                },
+                new BuildableStructureDescriptor
+                {
+                    DefName = "Modded_ArcFurnace",
+                    Label = "arc furnace",
+                    Category = "production",
+                    RequiresPower = true,
+                    FixedCosts = new[]
+                    {
+                        new BuildableMaterialCost("Steel", "Steel", 150),
+                        new BuildableMaterialCost("ComponentIndustrial", "ComponentIndustrial", 4)
+                    },
+                    Purpose = "Modded high-speed electric smelter."
+                }
+            };
+
+            var production = BuildableStructureCatalogPolicy.FilterAndProject(
+                descriptors,
+                "production",
+                def => stock.TryGetValue(def, out int c) ? c : 0);
+
+            Assert.Equal(2, production.Count);
+            // Affordable structure ranks first
+            Assert.Equal("SimpleResearchBench", production[0].DefName);
+            Assert.True(production[0].CanAfford);
+            Assert.Equal("75 WoodLog + 25 Steel", production[0].CostSummary);
+
+            Assert.Equal("Modded_ArcFurnace", production[1].DefName);
+            Assert.False(production[1].CanAfford);
+            Assert.True(production[1].RequiresPower);
+            Assert.Equal("150 Steel + 4 ComponentIndustrial", production[1].CostSummary);
+
+            var rec = BuildableStructureCatalogPolicy.FilterAndProject(
+                descriptors,
+                "recreation",
+                def => stock.TryGetValue(def, out int c) ? c : 0);
+            Assert.Single(rec);
+            Assert.Equal("HorseshoesPin", rec[0].DefName);
+            Assert.True(rec[0].CanAfford);
         }
     }
 }

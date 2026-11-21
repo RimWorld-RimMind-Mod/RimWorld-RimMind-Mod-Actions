@@ -37,6 +37,7 @@ namespace RimMind.Actions.Actions
         };
 
         protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.ResourceMarking;
+        protected override ToolScope? ToolScopes => ToolScope.ColonyManage;
         protected override IReadOnlyList<string> ToolAliases => Aliases;
         protected override bool IsSelfTargetedTool => false;
         protected override string? DisplayName => "Manage Zone";
@@ -56,7 +57,8 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            if (!TryGetArgument<string>(args.ArgumentsJson, "zone_type", out var zoneTypeStr)
+            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
+            if (!TryGetArgument<string>(argsRoot, "zone_type", out var zoneTypeStr)
                 || string.IsNullOrWhiteSpace(zoneTypeStr))
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -64,9 +66,9 @@ namespace RimMind.Actions.Actions
             }
 
 #if RIMMIND_ACTIONS_TESTS
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.ResourceMarking;
-            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
             {
                 var guard = GuardColonistTarget(testPawnId, domain, args);
                 if (guard.IsErr)
@@ -77,7 +79,7 @@ namespace RimMind.Actions.Actions
             return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
                 ToolResult.Ok($"Zone {zoneTypeStr}", args.ToolCallId, Id)));
 #else
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
             if (actorResolution.Error != null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -94,7 +96,7 @@ namespace RimMind.Actions.Actions
             // 1. Resolve Anchor Colonist & Autonomy Permission Guard
             Pawn? pawn = actorResolution.Pawn;
 
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.ResourceMarking;
             var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, args);
             if (!permCheck.IsOk)
@@ -103,13 +105,13 @@ namespace RimMind.Actions.Actions
             }
 
             // 2. Parse Dimensions
-            TryGetArgument<int>(args.ArgumentsJson, "width", out var width);
+            TryGetArgument<int>(argsRoot, "width", out var width);
             if (width <= 0) width = 5;
-            width = Math.Clamp(width, 2, 15);
+            width = Math.Max(2, Math.Min(15, width));
 
-            TryGetArgument<int>(args.ArgumentsJson, "height", out var height);
+            TryGetArgument<int>(argsRoot, "height", out var height);
             if (height <= 0) height = 5;
-            height = Math.Clamp(height, 2, 15);
+            height = Math.Max(2, Math.Min(15, height));
 
             IntVec3 origin = (pawn != null && pawn.Position.InHorDistOf(map.Center, 28f)) ? pawn.Position : map.Center;
             string zoneTypeLower = zoneTypeStr.Trim().ToLowerInvariant();
@@ -138,7 +140,7 @@ namespace RimMind.Actions.Actions
 
             if (isGrowing)
             {
-                TryGetArgument<string>(args.ArgumentsJson, "crop_def", out var cropDefName);
+                TryGetArgument<string>(argsRoot, "crop_def", out var cropDefName);
                 if (string.IsNullOrWhiteSpace(cropDefName)) cropDefName = "Plant_Rice";
 
                 var trimmedCrop = cropDefName.Trim();
@@ -184,17 +186,7 @@ namespace RimMind.Actions.Actions
                     "RimMind.Actions.Zone.GrowZoneDetail",
                     "Growing Zone (crop: {0}, cells: {1})",
                     plantDef.label, growZone.cells.Count);
-
-                var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map);
-                for (int i = 0; i < colonists.Count; i++)
-                {
-                    var c = colonists[i];
-                    if (c?.workSettings != null && c.workSettings.EverWork && !c.WorkTypeIsDisabled(WorkTypeDefOf.Growing))
-                    {
-                        c.workSettings.EnableAndInitializeIfNotAlreadyInitialized();
-                        c.workSettings.SetPriority(WorkTypeDefOf.Growing, 1);
-                    }
-                }
+                // Respect player work tab: colonists sow according to their existing Growing work priorities.
             }
             else
             {

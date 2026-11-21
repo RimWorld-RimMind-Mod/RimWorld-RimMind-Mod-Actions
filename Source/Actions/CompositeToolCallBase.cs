@@ -1,220 +1,46 @@
 using System;
-using System.Collections.Generic;
-using System.Threading;
-using System.Threading.Tasks;
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Application.Common.Models.Tools;
-using RimMind.Application.Features.Tools;
 using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.Common;
-using RimMind.Domain.Enums;
 using RimMind.Domain.ValueObjects;
-using RimMind.Presentation.Api;
 
 namespace RimMind.Actions.Actions
 {
-    public abstract class CompositeToolCallBase : ICompositeToolCall, IToolPolicyClassifier
+    /// <summary>
+    /// Actions-module base class for composite ToolCalls.
+    /// Inherits Core's <see cref="RimMind.Presentation.Api.CompositeToolCallBase"/>
+    /// (<c>ExecuteAtomicAsync</c>, single-pass <c>TryParseArgumentsObject</c>, <c>Classify</c>,
+    /// <c>Manifest</c>, and <c>ToolScopes</c>), layering Actions-specific ownership and localized
+    /// permission guards on top.
+    /// </summary>
+    public abstract class CompositeToolCallBase : RimMind.Presentation.Api.CompositeToolCallBase, ICompositeToolCall
     {
-        public abstract string Id { get; }
-
-        private ToolDefinition? _cachedDefinition;
-
-        public virtual string OwnerModId => "RimMindActions";
-
-        protected virtual ToolKind ToolKind => ToolKind.Mutation;
-
-        protected virtual AutonomyDomain? DefaultAutonomyDomain => null;
-
-        protected virtual RiskLevel DefaultRiskLevel => MapDomainToRisk(DefaultAutonomyDomain, ToolKind);
-
-        protected virtual bool DefaultRequiresApproval => false;
-
-        protected virtual IReadOnlyList<string> ToolAliases => Array.Empty<string>();
-
-        protected virtual bool IsSelfTargetedTool => false;
-
-        protected virtual string? DisplayName => null;
-
-        protected virtual IReadOnlyList<string> SummaryArgKeys => Array.Empty<string>();
-
-        public virtual ToolManifest Manifest => new ToolManifest
-        {
-            OwnerModId = OwnerModId,
-            Kind = ToolKind,
-            DefaultDomain = DefaultAutonomyDomain,
-            AutonomyDomainId = DefaultAutonomyDomain?.ToString(),
-            RiskLevel = DefaultRiskLevel,
-            RequiresApproval = DefaultRequiresApproval,
-            Aliases = ToolAliases,
-            IsSelfTargeted = IsSelfTargetedTool,
-            DisplayName = DisplayName,
-            SummaryArgKeys = SummaryArgKeys
-        };
-
-        public virtual ToolDefinition Definition => _cachedDefinition ??= BuildDefinition() with
-        {
-            Manifest = Manifest
-        };
-
-        protected virtual ToolDefinition BuildDefinition() => new ToolDefinition
-        {
-            Id = Id,
-            Manifest = Manifest
-        };
-
-        public abstract IReadOnlyList<string> RequiredToolIds { get; }
-
-        public abstract Task<Result<ToolResult, RimMindError>> ExecuteAsync(ToolCallArgs args, CancellationToken ct);
-
-        protected virtual AutonomyDomain? ResolveAutonomyDomain(JObject? root, ToolCallArgs args)
-            => DefaultAutonomyDomain;
-
-        public virtual ToolPolicyDecision Classify(ToolCallArgs args)
-        {
-            var effectiveArgs = args ?? new ToolCallArgs
-            {
-                ToolName = Id,
-                ArgumentsJson = "{}"
-            };
-            var root = TryParseArgumentsObject(effectiveArgs.ArgumentsJson);
-            var domain = ResolveAutonomyDomain(root, effectiveArgs);
-            return new ToolPolicyDecision
-            {
-                Domain = domain,
-                DomainId = domain?.ToString() ?? Manifest.AutonomyDomainId,
-                Risk = MapDomainToRisk(domain, ToolKind),
-                RequiresApproval = Manifest.RequiresApproval
-            };
-        }
-
-        protected static JObject? TryParseArgumentsObject(string? argumentsJson)
-        {
-            if (string.IsNullOrWhiteSpace(argumentsJson)) return null;
-            try
-            {
-                return JToken.Parse(argumentsJson!) as JObject;
-            }
-            catch
-            {
-                return null;
-            }
-        }
-
-        private static RiskLevel MapDomainToRisk(AutonomyDomain? domain, ToolKind kind)
-        {
-            if (!domain.HasValue)
-            {
-                return kind == ToolKind.Query ? RiskLevel.Low : RiskLevel.Medium;
-            }
-
-            return domain.Value switch
-            {
-                AutonomyDomain.EmergencySurvival => RiskLevel.Low,
-                AutonomyDomain.ResourceMarking => RiskLevel.Low,
-                AutonomyDomain.WorktableBills => RiskLevel.Medium,
-                AutonomyDomain.BlueprintPlacement => RiskLevel.Medium,
-                AutonomyDomain.WorkPriorityModification => RiskLevel.Medium,
-                AutonomyDomain.HighRiskOperations => RiskLevel.High,
-                _ => RiskLevel.Medium
-            };
-        }
-
-        protected virtual IToolHandler? FindTool(string toolId) => RimMindAPI.Tools.FindById(toolId);
-
-        /// <summary>
-        /// Checks whether all <see cref="RequiredToolIds"/> are currently registered.
-        /// Composite tools can call this for early validation before execution.
-        /// </summary>
-        protected virtual bool AreRequiredToolsRegistered()
-        {
-            foreach (var toolId in RequiredToolIds)
-            {
-                if (FindTool(toolId) == null) return false;
-            }
-            return true;
-        }
-
-        protected async Task<ToolResult> ExecuteAtomicAsync(
-            string toolId,
-            string argumentsJson,
-            ToolCallArgs parentArgs,
-            CancellationToken ct)
-        {
-            var childCallId = $"{parentArgs.ToolCallId}:{toolId}";
-            var handler = FindTool(toolId);
-            if (handler == null)
-            {
-                return ToolResult.Fail($"Required tool not registered: {toolId}", childCallId, toolId);
-            }
-
-            var childArgs = new ToolCallArgs
-            {
-                ToolCallId = childCallId,
-                ToolName = toolId,
-                ArgumentsJson = argumentsJson,
-                PawnId = parentArgs.PawnId,
-                NpcId = parentArgs.NpcId,
-                TraceId = parentArgs.TraceId,
-                Ct = ct,
-                IsPlayerApproved = parentArgs.IsPlayerApproved
-            };
-
-            var result = await handler.ExecuteAsync(childArgs, ct);
-            return result.IsOk
-                ? result.Value with { ToolCallId = childCallId, ToolName = toolId }
-                : ToolResult.Fail($"[{result.Error.Code}] {result.Error.Message}", childCallId, toolId);
-        }
-
-        internal protected static bool TryParsePawnIdString(string? raw, out int parsedId)
-            => PawnIdParser.TryParse(raw, out parsedId);
-
-        /// <summary>
-        /// Checks whether trusted host code (e.g. an advisor approval card the player clicked) approved this call.
-        /// Approval is read only from <see cref="ToolCallArgs.IsPlayerApproved"/>; LLM-supplied JSON fields such as
-        /// "pre_approved" / "is_approved" are deliberately ignored so a model cannot approve its own actions.
-        /// </summary>
-        public static bool IsPreApproved(ToolCallArgs args) => args != null && args.IsPlayerApproved;
+        public override string OwnerModId => "RimMindActions";
 
 #if RIMMIND_ACTIONS_TESTS
         /// <summary>Test hook replacing the Verse-backed colonist target guard.</summary>
-        internal static Func<int, RimMind.Domain.Agent.Policies.AutonomyDomain, ToolCallArgs, Result<Unit, RimMindError>>? TestColonistGuard;
+        internal static Func<int, AutonomyDomain, ToolCallArgs, Result<Unit, RimMindError>>? TestColonistGuard;
 #endif
 
-        /// <summary>
-        /// Verifies that <paramref name="pawnId"/> is an active spawned player colonist (not dead, off-map,
-        /// kidnapped, prisoner, slave, guest or hostile) and that the autonomy domain allows the action.
-        /// Must be called before any atomic call that targets an LLM-supplied pawn id.
-        /// </summary>
-        protected Result<Unit, RimMindError> GuardColonistTarget(
+        protected override Result<Unit, RimMindError> GuardColonistTarget(
             int pawnId,
-            RimMind.Domain.Agent.Policies.AutonomyDomain domain,
+            AutonomyDomain domain,
             ToolCallArgs args,
             string argumentKey = "pawn_id")
         {
 #if RIMMIND_ACTIONS_TESTS
             return TestColonistGuard?.Invoke(pawnId, domain, args) ?? Result<Unit, RimMindError>.Ok(Unit.Value);
 #else
-            var pawn = RimMindPawnLookup.FindPawnByNumber(pawnId);
-            if (pawn == null || !RimMindPawnLookup.IsActiveSpawnedColonist(pawn))
-            {
-                return Result<Unit, RimMindError>.Err(
-                    new RimMindError(
-                        RimMindErrorCode.MechanismInvalidAction,
-                        $"{argumentKey} {pawnId} is not an active spawned colonist")
-                    {
-                        TraceId = args.TraceId
-                    });
-            }
-            return CheckPermission(pawn, domain, args);
+            return base.GuardColonistTarget(pawnId, domain, args, argumentKey);
 #endif
         }
 
-        /// <summary>
-        /// Checks autonomy permissions against the colonist and autonomy domain, safely honoring pre-approvals.
-        /// </summary>
-        protected Result<Unit, RimMindError> CheckPermission(Verse.Pawn? pawn, RimMind.Domain.Agent.Policies.AutonomyDomain domain, ToolCallArgs args)
+        protected override Result<Unit, RimMindError> CheckPermission(
+            Verse.Pawn? pawn,
+            AutonomyDomain domain,
+            ToolCallArgs? args)
         {
 #if RIMMIND_ACTIONS_TESTS
             return Result<Unit, RimMindError>.Ok(Unit.Value);
@@ -223,133 +49,16 @@ namespace RimMind.Actions.Actions
 #endif
         }
 
-        /// <summary>
-        /// Tries to read a typed argument from the composite tool's JSON arguments.
-        /// Returns false on missing key, null token, or conversion failure.
-        /// </summary>
-        internal protected static bool TryGetArgument<T>(string argumentsJson, string key, out T value)
-        {
-            value = default!;
-            if (argumentsJson == null) return false;
-            try
-            {
-                var token = JObject.Parse(argumentsJson)[key];
-                if (token == null || token.Type == JTokenType.Null)
-                {
-                    return false;
-                }
-                if (typeof(T) == typeof(int) && token.Type == JTokenType.String)
-                {
-                    if (PawnIdParser.TryParse(token.ToString(), out int parsedInt))
-                    {
-                        value = (T)(object)parsedInt;
-                        return true;
-                    }
-                    return false;
-                }
-                var converted = token.Value<T>();
-                if (converted == null)
-                {
-                    return false;
-                }
-                value = converted;
-                return true;
-            }
-            catch (JsonException)
-            {
-                return false;
-            }
-            catch (FormatException)
-            {
-                return false;
-            }
-            catch (OverflowException)
-            {
-                return false;
-            }
-            catch (InvalidCastException)
-            {
-                return false;
-            }
-            catch (ArgumentException)
-            {
-                return false;
-            }
-        }
+        internal static JObject? ParseArgumentsObject(string? argumentsJson)
+            => TryParseArgumentsObject(argumentsJson);
 
-        /// <summary>
-        /// Tries to read a typed argument, returning a <see cref="Result{T, RimMindError}"/> with
-        /// <see cref="RimMindErrorCode.MechanismInvalidAction"/> on failure. DRYs the common
-        /// validate-or-return-error pattern used by composite tools.
-        /// </summary>
-        protected static Result<T, RimMindError> TryGetArgumentOrError<T>(
-            string argumentsJson, string key, string? traceId)
-        {
-            if (TryGetArgument(argumentsJson, key, out T value))
-            {
-                return Result<T, RimMindError>.Ok(value);
-            }
-            return Result<T, RimMindError>.Err(
-                new RimMindError(RimMindErrorCode.MechanismInvalidAction, $"Missing or invalid {key}")
-                {
-                    TraceId = traceId
-                });
-        }
+        internal static bool TryReadArgument<T>(JObject? root, string key, out T value)
+            => TryGetArgument(root, key, out value);
 
-        protected static Result<int, RimMindError> TryGetPawnIdOrError(
-            ToolCallArgs args, string key = "pawn_id")
-        {
-            int contextFallbackId = (args.PawnId.HasValue && args.PawnId.Value > 0)
-                ? args.PawnId.Value
-                : (PawnIdParser.TryParse(args.NpcId, out int parsedNpcId) && parsedNpcId > 0 ? parsedNpcId : 0);
+        internal static bool TryReadArgument<T>(string? argumentsJson, string key, out T value)
+            => TryGetArgument(argumentsJson, key, out value);
 
-            if (TryGetArgument<int>(args.ArgumentsJson, key, out int id) && id > 0)
-            {
-                return Result<int, RimMindError>.Ok(id);
-            }
-            if (key != "pawn_id" && TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int fallbackId) && fallbackId > 0)
-            {
-                return Result<int, RimMindError>.Ok(fallbackId);
-            }
-            if (contextFallbackId > 0)
-            {
-                return Result<int, RimMindError>.Ok(contextFallbackId);
-            }
-            return Result<int, RimMindError>.Err(
-                new RimMindError(RimMindErrorCode.MechanismInvalidAction, $"Missing or invalid {key}")
-                {
-                    TraceId = args.TraceId
-                });
-        }
-
-        /// <summary>
-        /// Builds a compact JSON argument payload for a child atomic tool call.
-        /// </summary>
-        protected static string BuildArgumentsJson(params (string Key, object? Value)[] pairs)
-        {
-            var obj = new JObject();
-            foreach (var (key, val) in pairs)
-            {
-                obj[key] = val == null ? JValue.CreateNull() : JToken.FromObject(val);
-            }
-            return obj.ToString(Formatting.None);
-        }
-
-        /// <summary>
-        /// Builds the standard per-step summary JSON: each step gets {"ok":bool,"content":string}.
-        /// </summary>
-        protected static string BuildStepSummary(params (string Name, ToolResult Result)[] steps)
-        {
-            var obj = new JObject();
-            foreach (var (name, result) in steps)
-            {
-                obj[name] = new JObject
-                {
-                    ["ok"] = !result.IsError,
-                    ["content"] = result.Content
-                };
-            }
-            return obj.ToString(Formatting.None);
-        }
+        internal static bool TryParsePawnId(string? raw, out int parsedId)
+            => TryParsePawnIdString(raw, out parsedId);
     }
 }
