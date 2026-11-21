@@ -49,5 +49,19 @@ namespace RimMind.Presentation.Api
     public static class RimMindAPI
     {
         public static RimMind.Application.Common.Interfaces.Tools.IToolRegistry Tools { get; set; } = null!;
+
+        public static class Autonomy
+        {
+            public static RimMind.Domain.Agent.Policies.AutonomyLevel GetLevel(
+                Verse.Pawn? pawn,
+                RimMind.Domain.Agent.Policies.AutonomyDomain domain)
+                => RimMind.Domain.Agent.Policies.AutonomyLevel.FullAutonomous;
+        }
+    }
+
+    public static class RimMindPawnLookup
+    {
+        public static Verse.Pawn? FindPawnByNumber(int pawnId) => null;
+        public static bool IsActiveSpawnedColonist(Verse.Pawn? pawn) => pawn != null;
     }
 }

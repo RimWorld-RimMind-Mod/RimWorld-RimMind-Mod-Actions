@@ -19,6 +19,7 @@
     <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/TraceContext.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Common/ThreadAffinityAttribute.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Agent/Modes/AgentDecision.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Common/Constants/RimMindOwnerConsts.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Abstractions/ILogSink.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Extension/IExtension.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Registry/IOwnedRegistry.cs" />
@@ -33,12 +34,15 @@
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Agent/AgentScopeKind.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolCallArgs.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Models/Tools/ToolResult.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/AutonomyDomainRiskMapper.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/ToolScopeProjection.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/PawnIdParser.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/ToolRegistry.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Common/Unit.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Agent/Policies/AutonomyDomain.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Agent/Policies/AutonomyLevel.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Agent/Policies/AgentAutonomyPolicy.cs" />
+    <Compile Include="../../RimMind-Core/Source/Presentation/Api/CompositeToolCallBase.cs" />
   </ItemGroup>
 
   <!-- Actions 源码（不含 RimMindActionsMod.cs：该文件依赖 Verse.Mod/Log，
@@ -59,6 +63,10 @@
     <Compile Include="../Source/Actions/QueryBuildableStructuresCompositeTool.cs" />
     <Compile Include="../Source/Actions/CompositeToolRegistrar.cs" />
     <Compile Include="../Source/Policies/ResourceSafetyPolicy.cs" />
+    <Compile Include="../Source/Policies/BuildableStructureCatalogPolicy.cs" />
+    <Compile Include="../Source/Spatial/SpatialGridModels.cs" />
+    <Compile Include="../Source/Spatial/SpatialBuildingClassifier.cs" />
+    <Compile Include="../Source/Spatial/SpatialAsciiRenderer.cs" />
     <Compile Include="../Source/Spatial/ColonySpatialClusterSolver.cs" />
     <Compile Include="../Source/Spatial/MapSpatialSnapshotBuilder.cs" />
   </ItemGroup>
@@ -69,7 +77,7 @@
     <PackageReference Include="xunit" Version="2.9.0" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
-    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.*" />
   </ItemGroup>
 
 </Project>

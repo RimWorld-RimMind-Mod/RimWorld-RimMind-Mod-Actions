@@ -51,15 +51,17 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
-        public void PlanRoomProject_Chains_AgentIntentSession()
+        public void PlanRoomProject_Chains_Shared_ConstructionIntentChainer()
         {
             var source = ReadActionsSource(Path.Combine("Actions", "PlanRoomProjectCompositeTool.cs"));
-            Assert.Contains("RimMindAPI.Agent.StartIntentSession", source);
+            var chainerSource = ReadActionsSource(Path.Combine("Actions", "ConstructionIntentChainer.cs"));
             Assert.DoesNotContain("using RimMind.Infrastructure", source);
-            Assert.Contains("StartIntentSession", source);
+            Assert.DoesNotContain("using RimMind.Infrastructure", chainerSource);
+            Assert.Contains("ConstructionIntentChainer.TryChainProject", source);
+            Assert.Contains("RimMindAPI.Agent.StartIntentSession", chainerSource);
             Assert.Contains("PlaceBlueprintForBuild", source);
             Assert.Contains("targetCells", source);
-            Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", source);
+            Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", chainerSource);
             Assert.Contains("GenRadial.RadialCellsAround(origin, 30f, true)", source);
             Assert.DoesNotContain("for (int r = 4; r <= 30; r += 2)", source);
         }

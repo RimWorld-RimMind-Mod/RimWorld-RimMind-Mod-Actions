@@ -33,6 +33,7 @@ namespace RimMind.Actions.Actions
         };
 
         protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.EmergencySurvival;
+        protected override ToolScope? ToolScopes => ToolScope.ColonistSelf;
         protected override IReadOnlyList<string> ToolAliases => Aliases;
         protected override bool IsSelfTargetedTool => true;
         protected override string? DisplayName => "Triage Patient";
@@ -53,14 +54,15 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var patientIdResult = TryGetPawnIdOrError(args, "patient_id");
+            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
+            var patientIdResult = TryGetPawnIdOrError(argsRoot, args, "patient_id");
             if (patientIdResult.IsErr)
             {
                 return Result<ToolResult, RimMindError>.Err(patientIdResult.Error);
             }
             int patientId = patientIdResult.Value;
 
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.EmergencySurvival;
             var patientGuard = GuardColonistTarget(patientId, domain, args, "patient_id");
             if (patientGuard.IsErr)
@@ -69,7 +71,7 @@ namespace RimMind.Actions.Actions
             }
 
             int doctorId = 0;
-            bool hasDoctor = TryGetArgument<int>(args.ArgumentsJson, "doctor_id", out doctorId) && doctorId > 0;
+            bool hasDoctor = TryGetArgument<int>(argsRoot, "doctor_id", out doctorId) && doctorId > 0;
             if (hasDoctor)
             {
                 var doctorGuard = GuardColonistTarget(doctorId, domain, args, "doctor_id");
@@ -105,13 +107,7 @@ namespace RimMind.Actions.Actions
             if (hasDoctor)
             {
 #if !RIMMIND_ACTIONS_TESTS
-                var docPawn = RimMind.Presentation.Api.RimMindPawnLookup.FindPawnByNumber(doctorId);
-                if (docPawn?.workSettings != null && docPawn.workSettings.EverWork && !docPawn.WorkTypeIsDisabled(RimWorld.WorkTypeDefOf.Doctor))
-                {
-                    docPawn.workSettings.EnableAndInitializeIfNotAlreadyInitialized();
-                    docPawn.workSettings.SetPriority(RimWorld.WorkTypeDefOf.Doctor, 1);
-                }
-
+                // Respect player work priorities: never mutate workSettings.SetPriority; dispatch direct rescue/tend job.
                 if (patientPawn != null && patientPawn.Downed && !RimWorld.RestUtility.InBed(patientPawn))
                 {
                     var rescueArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "rescue_pawn"), ("target_pawn_id", patientId));

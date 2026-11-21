@@ -44,11 +44,14 @@ namespace RimMind.Actions.Tests
                 Assert.False(string.IsNullOrWhiteSpace(manifest.DisplayName), $"Tool '{tool.Id}' must declare DisplayName");
                 Assert.NotEmpty(manifest.Aliases);
                 Assert.NotEmpty(manifest.SummaryArgKeys);
+                Assert.True(manifest.Scopes.HasValue && manifest.Scopes.Value != ToolScope.None,
+                    $"Tool '{tool.Id}' must declare explicit ToolScopes");
 
                 if (tool is QueryBuildableStructuresCompositeTool)
                 {
                     Assert.Equal(ToolKind.Query, manifest.Kind);
                     Assert.Null(manifest.DefaultDomain);
+                    Assert.Equal(ToolScope.ColonyBuild | ToolScope.ColonyManage, manifest.Scopes);
                 }
                 else
                 {

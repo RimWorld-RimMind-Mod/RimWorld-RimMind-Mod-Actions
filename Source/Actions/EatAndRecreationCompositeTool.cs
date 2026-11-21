@@ -36,6 +36,7 @@ namespace RimMind.Actions.Actions
         };
 
         protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.EmergencySurvival;
+        protected override ToolScope? ToolScopes => ToolScope.ColonistSelf;
         protected override IReadOnlyList<string> ToolAliases => Aliases;
         protected override bool IsSelfTargetedTool => true;
         protected override string? DisplayName => "Eat & Recreation";
@@ -56,14 +57,15 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var pawnIdResult = TryGetPawnIdOrError(args, "pawn_id");
+            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
+            var pawnIdResult = TryGetPawnIdOrError(argsRoot, args, "pawn_id");
             if (pawnIdResult.IsErr)
             {
                 return Result<ToolResult, RimMindError>.Err(pawnIdResult.Error);
             }
             int pawnId = pawnIdResult.Value;
 
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.EmergencySurvival;
             var guard = GuardColonistTarget(pawnId, domain, args);
             if (guard.IsErr)
@@ -77,7 +79,7 @@ namespace RimMind.Actions.Actions
             ct.ThrowIfCancellationRequested();
 
             // 2. Direct pawn to eat food if hunger-driven, otherwise rest and regenerate vital energies
-            TryGetArgument<string>(args.ArgumentsJson, "reason", out var reasonText);
+            TryGetArgument<string>(argsRoot, "reason", out var reasonText);
             bool wantsFood = !string.IsNullOrWhiteSpace(reasonText) &&
                 (reasonText.IndexOf("eat", System.StringComparison.OrdinalIgnoreCase) >= 0 ||
                  reasonText.IndexOf("food", System.StringComparison.OrdinalIgnoreCase) >= 0 ||

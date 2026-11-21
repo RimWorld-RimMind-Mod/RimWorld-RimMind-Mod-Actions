@@ -183,5 +183,37 @@ namespace RimMind.Actions.Tests
             Assert.Contains("B", grid);
             Assert.Contains("@", grid);
         }
+
+        [Fact]
+        public void CenterAnchored_MultiCell_Footprint_Rejects_Cells_Whose_Offset_Corners_Overlap_Walls()
+        {
+            ColonySpatialSnapshot snapshot = BuildBedroomAndWorkshopSnapshot();
+            // 3x1 center-anchored workbench (occupied x-1..x+1): must never choose x=17 (adjacent to left wall x=16) or x=21 (adjacent to right wall x=22)
+            var request = new SpatialPlacementRequest
+            {
+                BuildingDefName = "FueledStove",
+                Category = SpatialBuildingCategory.Production,
+                SizeX = 3,
+                SizeZ = 1,
+                FootprintMinOffsetX = -1,
+                FootprintMinOffsetZ = 0,
+                HasInteractionCell = true,
+                InteractionOffsetX = 0,
+                InteractionOffsetZ = -1,
+                LocationHint = "indoor",
+                AnchorX = 19,
+                AnchorZ = 12
+            };
+
+            List<SpatialCandidateScore> ranked = ColonySpatialClusterSolver.RankCandidates(snapshot, request);
+            Assert.NotEmpty(ranked);
+            foreach (var candidate in ranked)
+            {
+                if (candidate.RoomId == 2)
+                {
+                    Assert.InRange(candidate.X, 18, 20);
+                }
+            }
+        }
     }
 }

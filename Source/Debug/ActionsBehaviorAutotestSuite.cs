@@ -25,7 +25,7 @@ namespace RimMind.Actions.Debug
 
         public override void RunSuite(IInGameBehaviorSuiteContext context)
         {
-            var registry = RimMindAPI.Tools;
+            var registry = RimMindAPI.ToolSet.Registry;
 
             // 1. Check Tool Registration
             context.Assert(registry != null, "Tool registry is accessible from RimMindAPI.ToolSet.Registry");

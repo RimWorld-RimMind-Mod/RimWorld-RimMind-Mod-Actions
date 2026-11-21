@@ -4,11 +4,13 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using RimMind.Actions.Policies;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.ValueObjects;
 #if !RIMMIND_ACTIONS_TESTS
 using RimMind.Actions.Spatial;
+using RimMind.Presentation.Api;
 using RimWorld;
 #endif
 using Verse;
@@ -16,8 +18,9 @@ using Verse;
 namespace RimMind.Actions.Actions
 {
     /// <summary>
-    /// Composite query tool allowing AI Agents to inspect available buildable structures,
-    /// researched technologies, material costs, stockpile reserves, and urgent infrastructure bottlenecks.
+    /// Composite query tool allowing AI Agents to dynamically inspect player-buildable structures
+    /// discovered from <c>DefDatabase&lt;ThingDef&gt;</c> (covering both vanilla and modded buildings),
+    /// material costs, stockpile reserves, spatial layout, and urgent infrastructure bottlenecks.
     /// </summary>
     public sealed class QueryBuildableStructuresCompositeTool : CompositeToolCallBase
     {
@@ -36,6 +39,7 @@ namespace RimMind.Actions.Actions
 
         protected override ToolKind ToolKind => ToolKind.Query;
         protected override AutonomyDomain? DefaultAutonomyDomain => null;
+        protected override ToolScope? ToolScopes => ToolScope.ColonyBuild | ToolScope.ColonyManage;
         protected override IReadOnlyList<string> ToolAliases => Aliases;
         protected override bool IsSelfTargetedTool => false;
         protected override string? DisplayName => "Query Buildable Structures";
@@ -45,8 +49,8 @@ namespace RimMind.Actions.Actions
         {
             Id = Id,
             Category = "query",
-            Description = "Query buildable structures unlocked by the colony's research, material costs, map stockpile availability, and urgent infrastructure bottlenecks (beds, temperature, recreation).",
-            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"category\":{\"type\":\"string\",\"description\":\"Optional category filter: 'furniture', 'temperature', 'production', 'recreation', 'defense', 'livestock', or 'all' (default).\"}},\"required\":[]}"
+            Description = "Dynamically queries player-buildable structures unlocked by colony research (vanilla and modded), material costs, stockpile availability, spatial layout, and urgent infrastructure bottlenecks.",
+            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"category\":{\"type\":\"string\",\"description\":\"Optional category filter: 'furniture', 'temperature', 'production', 'recreation', 'defense', 'livestock', 'power', 'structure', or 'all' (default).\"}},\"required\":[]}"
         };
 
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
@@ -55,7 +59,8 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            TryGetArgument<string>(args.ArgumentsJson, "category", out var categoryFilter);
+            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
+            TryGetArgument<string>(argsRoot, "category", out var categoryFilter);
             categoryFilter = string.IsNullOrWhiteSpace(categoryFilter) ? "all" : categoryFilter.ToLowerInvariant().Trim();
 
 #if RIMMIND_ACTIONS_TESTS
@@ -68,7 +73,7 @@ namespace RimMind.Actions.Actions
             }));
 #else
             // Read-only query: prefer the acting colonist's map, fall back to the viewed map.
-            var actorResolution = RimMind.Actions.Policies.ActionPermissionGuard.ResolveActorAndMap(args);
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, parsedArgs: argsRoot);
             var map = actorResolution.Map ?? Find.CurrentMap;
             if (map == null)
             {
@@ -103,55 +108,53 @@ namespace RimMind.Actions.Actions
                     tables = r.TableCount
                 })
                 .ToList();
-            string spatialAsciiMap = ColonySpatialClusterSolver.RenderCompactAsciiGrid(
+            string spatialAsciiMap = SpatialAsciiRenderer.RenderCompactAsciiGrid(
                 spatialSnapshot,
                 spatialSnapshot.ColonyAnchorX,
                 spatialSnapshot.ColonyAnchorZ,
                 radius: 10);
 
-            int woodCount = RimMind.Actions.Policies.ResourceSafetyGuard.GetAvailableCount(map, ThingDefOf.WoodLog);
-            int steelCount = RimMind.Actions.Policies.ResourceSafetyGuard.GetAvailableCount(map, ThingDefOf.Steel);
+            int woodCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
+            int steelCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
             var compDef = DefDatabase<ThingDef>.GetNamedSilentFail("ComponentIndustrial")
                 ?? DefDatabase<ThingDef>.GetNamedSilentFail("ComponentsIndustrial");
-            int componentCount = compDef != null ? RimMind.Actions.Policies.ResourceSafetyGuard.GetAvailableCount(map, compDef) : 0;
+            int componentCount = compDef != null ? MapResourceCounter.GetAvailableCount(map, compDef) : 0;
 
             float outdoorTemp = map.mapTemperature.OutdoorTemp;
             bool hasPower = HasActivePowerGrid(map);
 
             var bottlenecks = DetectBottlenecks(map, outdoorTemp, hasPower);
 
-            var catalog = GetCuratedStructures();
-            var filteredStructures = new List<object>();
-
-            foreach (var s in catalog)
+            var availableByDefName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            int LookupAvailableCount(string defName)
             {
-                if (categoryFilter != "all" && !s.Category.Equals(categoryFilter, StringComparison.OrdinalIgnoreCase))
-                {
-                    continue;
-                }
+                if (string.IsNullOrWhiteSpace(defName)) return 0;
+                if (availableByDefName.TryGetValue(defName, out int cached)) return cached;
+                var resolved = DefDatabase<ThingDef>.GetNamedSilentFail(defName);
+                int count = resolved != null ? MapResourceCounter.GetAvailableCount(map, resolved) : 0;
+                availableByDefName[defName] = count;
+                return count;
+            }
 
-                var def = DefDatabase<ThingDef>.GetNamedSilentFail(s.DefName);
-                if (def == null) continue;
+            var dynamicDescriptors = DiscoverBuildableStructures(map, LookupAvailableCount);
+            var catalogItems = BuildableStructureCatalogPolicy.FilterAndProject(
+                dynamicDescriptors,
+                categoryFilter,
+                LookupAvailableCount,
+                BuildableStructureCatalogPolicy.DefaultMaxResults);
 
-                // Check research requirements
-                if (def.researchPrerequisites != null && def.researchPrerequisites.Any(r => !r.IsFinished))
-                {
-                    continue;
-                }
-
-                bool canAfford = CheckCanAfford(def, s.BaseCostWood, s.BaseCostSteel, s.BaseCostComp, woodCount, steelCount, componentCount);
-
-                filteredStructures.Add(new
+            var filteredStructures = catalogItems
+                .Select(s => new
                 {
                     def_name = s.DefName,
-                    label = def.label,
+                    label = s.Label,
                     category = s.Category,
                     requires_power = s.RequiresPower,
-                    cost_summary = s.CostDescription,
-                    can_afford = canAfford,
+                    cost_summary = s.CostSummary,
+                    can_afford = s.CanAfford,
                     purpose = s.Purpose
-                });
-            }
+                })
+                .ToList();
 
             var responsePayload = new
             {
@@ -190,6 +193,138 @@ namespace RimMind.Actions.Actions
         }
 
 #if !RIMMIND_ACTIONS_TESTS
+        private static List<BuildableStructureDescriptor> DiscoverBuildableStructures(
+            Map map,
+            Func<string, int> lookupAvailableCount)
+        {
+            var results = new List<BuildableStructureDescriptor>();
+            var allDefs = DefDatabase<ThingDef>.AllDefsListForReading;
+
+            for (int i = 0; i < allDefs.Count; i++)
+            {
+                var def = allDefs[i];
+                if (def == null
+                    || def.category != ThingCategory.Building
+                    || def.IsFrame
+                    || def.IsBlueprint
+                    || !def.BuildableByPlayer
+                    || !def.IsResearchFinished
+                    || def.designationCategory == null)
+                {
+                    continue;
+                }
+
+                var powerComp = def.GetCompProperties<CompProperties_Power>();
+                bool requiresPower = powerComp != null && powerComp.PowerConsumption > 0f;
+                bool generatesPower = powerComp != null && powerComp.PowerConsumption < 0f;
+
+                bool isBed = def.thingClass != null && typeof(Building_Bed).IsAssignableFrom(def.thingClass);
+                bool isWorkTable = def.thingClass != null && typeof(Building_WorkTable).IsAssignableFrom(def.thingClass);
+                bool isTable = def.surfaceType == SurfaceType.Eat;
+                bool isJoy = def.building?.joyKind != null;
+                bool isDefense = (def.building != null && def.building.IsTurret)
+                    || (def.thingClass != null && typeof(Building_Trap).IsAssignableFrom(def.thingClass))
+                    || string.Equals(def.designationCategory.defName, "Security", StringComparison.OrdinalIgnoreCase);
+                bool isFenceOrPen = (def.building != null && def.building.isFence)
+                    || def.GetCompProperties<CompProperties_AnimalPenMarker>() != null
+                    || (def.defName != null && (def.defName.IndexOf("Fence", StringComparison.OrdinalIgnoreCase) >= 0
+                        || def.defName.IndexOf("PenMarker", StringComparison.OrdinalIgnoreCase) >= 0));
+                bool isTempControl = def.GetCompProperties<CompProperties_TempControl>() != null
+                    || def.GetCompProperties<CompProperties_HeatPusher>() != null;
+
+                string category = BuildableStructureCatalogPolicy.ClassifyCategory(
+                    def.designationCategory.defName,
+                    def.defName,
+                    isBed: isBed,
+                    isWorkTable: isWorkTable,
+                    isTable: isTable,
+                    isJoy: isJoy,
+                    isDefense: isDefense,
+                    isFenceOrPen: isFenceOrPen,
+                    isTempControl: isTempControl,
+                    generatesPower: generatesPower);
+
+                int stuffCount = def.MadeFromStuff ? def.costStuffCount : 0;
+                string? bestStuffLabel = null;
+                int bestStuffAvailable = 0;
+                if (stuffCount > 0)
+                {
+                    ThingDef? bestStuff = null;
+                    foreach (var allowed in GenStuff.AllowedStuffsFor(def))
+                    {
+                        if (allowed == null) continue;
+                        int have = lookupAvailableCount(allowed.defName);
+                        if (bestStuff == null || have > bestStuffAvailable)
+                        {
+                            bestStuff = allowed;
+                            bestStuffAvailable = have;
+                        }
+                    }
+
+                    if (bestStuff == null)
+                    {
+                        bestStuff = GenStuff.DefaultStuffFor(def);
+                        bestStuffAvailable = bestStuff != null ? lookupAvailableCount(bestStuff.defName) : 0;
+                    }
+
+                    bestStuffLabel = bestStuff?.defName ?? bestStuff?.label ?? "Stuff";
+                }
+
+                var fixedCosts = new List<BuildableMaterialCost>();
+                if (def.costList != null)
+                {
+                    for (int c = 0; c < def.costList.Count; c++)
+                    {
+                        var item = def.costList[c];
+                        if (item?.thingDef != null && item.count > 0)
+                        {
+                            fixedCosts.Add(new BuildableMaterialCost(
+                                item.thingDef.defName,
+                                item.thingDef.defName,
+                                item.count));
+                        }
+                    }
+                }
+
+                int priorityWeight = ComputePriorityWeight(category, isBed, isWorkTable, isTempControl, isJoy, requiresPower);
+
+                results.Add(new BuildableStructureDescriptor
+                {
+                    DefName = def.defName ?? string.Empty,
+                    Label = def.label ?? def.defName ?? string.Empty,
+                    Category = category,
+                    RequiresPower = requiresPower,
+                    CostStuffCount = stuffCount,
+                    BestStuffLabel = bestStuffLabel,
+                    BestStuffAvailable = bestStuffAvailable,
+                    FixedCosts = fixedCosts,
+                    Purpose = def.description ?? string.Empty,
+                    PriorityWeight = priorityWeight
+                });
+            }
+
+            return results;
+        }
+
+        private static int ComputePriorityWeight(
+            string category,
+            bool isBed,
+            bool isWorkTable,
+            bool isTempControl,
+            bool isJoy,
+            bool requiresPower)
+        {
+            int weight = 0;
+            if (isBed) weight += 30;
+            if (isWorkTable) weight += 25;
+            if (isTempControl) weight += 25;
+            if (isJoy) weight += 20;
+            if (!requiresPower) weight += 10;
+            if (category == "furniture" || category == "production" || category == "temperature")
+                weight += 10;
+            return weight;
+        }
+
         private static bool HasActivePowerGrid(Map map)
         {
             if (map.powerNetManager == null) return false;
@@ -203,8 +338,8 @@ namespace RimMind.Actions.Actions
         private static List<string> DetectBottlenecks(Map map, float outdoorTemp, bool hasPower)
         {
             var list = new List<string>();
-            var colonists = RimMind.Presentation.Api.RimMindPawnLookup.GetSpawnedColonistsSafe(map)
-                .Where(p => RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
+            var colonists = RimMindPawnLookup.GetSpawnedColonistsSafe(map)
+                .Where(p => RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
                 .ToList();
 
             bool sleepingOutside = false;
@@ -253,92 +388,6 @@ namespace RimMind.Actions.Actions
 
             return list;
         }
-
-        private static bool CheckCanAfford(ThingDef def, int wood, int steel, int comp, int woodHave, int steelHave, int compHave)
-        {
-            if (wood > 0 && woodHave < wood) return false;
-            if (steel > 0 && steelHave < steel) return false;
-            if (comp > 0 && compHave < comp) return false;
-            return true;
-        }
 #endif
-
-        private static List<StructureEntry> GetCuratedStructures()
-        {
-            return new List<StructureEntry>
-            {
-                // Furniture
-                new StructureEntry("Bed", "furniture", false, "45 WoodLog or Steel", 45, 0, 0, "Comfortable sleeping; prevents SleptOnGround and SleptOutside debuffs"),
-                new StructureEntry("Bedroll", "furniture", false, "40 Cloth or Leather", 0, 0, 0, "Portable light sleeping bed"),
-                new StructureEntry("TableShort", "furniture", false, "28 WoodLog or Steel", 28, 0, 0, "Small dining/recreation table; prevents AteOnGround debuff"),
-                new StructureEntry("Table2x2c", "furniture", false, "40 WoodLog or Steel", 40, 0, 0, "Medium 2x2 dining and recreation table"),
-                new StructureEntry("Chair", "furniture", false, "20 WoodLog or Steel", 20, 0, 0, "Comfortable seating at tables and workbenches"),
-                new StructureEntry("Stool", "furniture", false, "15 WoodLog or Steel", 15, 0, 0, "Simple fast seating"),
-
-                // Temperature
-                new StructureEntry("PassiveCooler", "temperature", false, "50 WoodLog", 50, 0, 0, "Zero-electricity evaporative cooler; cools rooms down to 15°C; perfect for early game heat"),
-                new StructureEntry("Campfire", "temperature", false, "20 WoodLog", 20, 0, 0, "Zero-electricity heat source, light, and simple meal cooking"),
-                new StructureEntry("Cooler", "temperature", true, "90 Steel + 3 Components", 0, 90, 3, "Powered refrigeration unit; required for food freezers"),
-                new StructureEntry("Heater", "temperature", true, "50 Steel + 1 Component", 0, 50, 1, "Powered thermostatically controlled indoor heater"),
-                new StructureEntry("Vent", "temperature", false, "30 Steel", 0, 30, 0, "Equalizes temperature between adjacent enclosed rooms"),
-
-                // Production
-                new StructureEntry("FueledStove", "production", false, "80 WoodLog + 20 Steel", 80, 20, 0, "Wood-fueled cooking stove to cook fine, simple, or lavish meals"),
-                new StructureEntry("TableButcher", "production", false, "75 WoodLog or Steel", 75, 0, 0, "Butchering table to process animal corpses into meat and leather"),
-                new StructureEntry("CraftingSpot", "production", false, "Free", 0, 0, 0, "Designated floor spot for simple crafting without material cost"),
-                new StructureEntry("TableStonecutter", "production", false, "70 WoodLog or Steel", 70, 0, 0, "Cuts raw stone chunks into building blocks"),
-                new StructureEntry("HandTailoringBench", "production", false, "50 WoodLog", 50, 0, 0, "Manual tailoring bench for parkas, dusters, and apparel"),
-                new StructureEntry("FueledSmithy", "production", false, "100 Steel", 0, 100, 0, "Fueled forge for melee weapons and armor"),
-                new StructureEntry("ResearchBench", "production", false, "50 WoodLog + 20 Steel", 50, 20, 0, "Simple bench for unlocking new colony technologies"),
-
-                // Recreation
-                new StructureEntry("HorseshoePin", "recreation", false, "15 WoodLog or Steel", 15, 0, 0, "Outdoor dexterity recreation game"),
-                new StructureEntry("ChessTable", "recreation", false, "70 WoodLog", 70, 0, 0, "Indoor cerebral recreation and social gathering spot"),
-
-                // Defense & Security
-                new StructureEntry("TrapSpike", "defense", false, "45 WoodLog or Steel", 45, 0, 0, "Deadly spring-loaded deadfall spike trap"),
-                new StructureEntry("Sandbags", "defense", false, "5 Steel or Cloth per tile", 0, 5, 0, "Low-cover fortification against enemy ballistic fire"),
-                new StructureEntry("Barricade", "defense", false, "5 WoodLog or Metal per tile", 5, 0, 0, "Quick defensive cover built from wood or stone"),
-                new StructureEntry("Wall", "defense", false, "5 WoodLog or Stone per tile", 5, 0, 0, "Encloses rooms, provides roof support, and blocks enemies"),
-                new StructureEntry("Door", "defense", false, "25 WoodLog or Steel", 25, 0, 0, "Provides passage through walls while maintaining room insulation"),
-
-                // Livestock
-                new StructureEntry("PenMarker", "livestock", false, "20 WoodLog", 20, 0, 0, "Marks an enclosed pasture/pen for domestic herd animals"),
-                new StructureEntry("Fence", "livestock", false, "2 WoodLog per tile", 2, 0, 0, "Low wooden barrier that encloses pen animals"),
-                new StructureEntry("FenceGate", "livestock", false, "10 WoodLog", 10, 0, 0, "Passage gate for colonists into animal pens")
-            };
-        }
-
-        private class StructureEntry
-        {
-            public string DefName { get; }
-            public string Category { get; }
-            public bool RequiresPower { get; }
-            public string CostDescription { get; }
-            public int BaseCostWood { get; }
-            public int BaseCostSteel { get; }
-            public int BaseCostComp { get; }
-            public string Purpose { get; }
-
-            public StructureEntry(
-                string defName,
-                string category,
-                bool requiresPower,
-                string costDescription,
-                int baseCostWood,
-                int baseCostSteel,
-                int baseCostComp,
-                string purpose)
-            {
-                DefName = defName;
-                Category = category;
-                RequiresPower = requiresPower;
-                CostDescription = costDescription;
-                BaseCostWood = baseCostWood;
-                BaseCostSteel = baseCostSteel;
-                BaseCostComp = baseCostComp;
-                Purpose = purpose;
-            }
-        }
     }
 }

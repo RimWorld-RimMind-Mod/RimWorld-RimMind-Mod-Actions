@@ -4,6 +4,11 @@ using System.Collections.Generic;
 
 namespace Verse
 {
+    public static class UnityData
+    {
+        public static bool IsInMainThread { get; set; } = true;
+    }
+
     /// <summary>
     /// Pawn 桩：仅提供类型标识，无游戏逻辑
     /// </summary>

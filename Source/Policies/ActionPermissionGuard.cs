@@ -1,3 +1,4 @@
+using Newtonsoft.Json.Linq;
 using RimMind.Actions.Actions;
 using RimMind.Application.Common.Models.Tools;
 using RimMind.Domain.Agent.Policies;
@@ -5,11 +6,13 @@ using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
 using RimMind.Presentation.Api;
 using Verse;
+using CompositeToolCallBase = RimMind.Actions.Actions.CompositeToolCallBase;
 
 namespace RimMind.Actions.Policies
 {
     /// <summary>
-    /// Guard that enforces colonist tri-state autonomy permissions before executing autonomous composite tools.
+    /// Guard that enforces colonist tri-state autonomy permissions and resolves actor/map targets
+    /// via Core <see cref="ActorMapResolver"/> and <see cref="RimMindAPI.Text"/>.
     /// </summary>
     public static class ActionPermissionGuard
     {
@@ -27,7 +30,7 @@ namespace RimMind.Actions.Policies
         }
 
         public static string TranslateOrFallback(string key, string fallbackEn, params object[] args)
-            => ResourceSafetyPolicy.TranslateOrFallback(key, fallbackEn, args);
+            => RimMindAPI.Text.TrOr(key, fallbackEn, args);
 
         public static Result<Unit, RimMindError> CheckPermission(
             Pawn? pawn,
@@ -100,38 +103,45 @@ namespace RimMind.Actions.Policies
         }
 
         /// <summary>
-        /// Resolves the acting colonist across all maps and returns <em>that colonist's</em> map, so actions never
-        /// land on whatever map the player happens to be viewing. Lookup order: <paramref name="pawnIdKey"/>
-        /// argument, <see cref="ToolCallArgs.PawnId"/>, <see cref="ToolCallArgs.NpcId"/>.
-        /// If any id is supplied but none resolves to an active standing colonist, an error is returned instead
-        /// of silently substituting another colonist. Only when no id is supplied at all does it fall back to
-        /// <see cref="Find.CurrentMap"/> (and optionally any active colonist on it).
+        /// Resolves the acting colonist across all maps via Core <see cref="ActorMapResolver"/> and returns
+        /// <em>that colonist's</em> map, so actions never land on whatever map the player happens to be viewing.
+        /// Lookup order: <paramref name="pawnIdKey"/> argument, <see cref="ToolCallArgs.PawnId"/>,
+        /// <see cref="ToolCallArgs.NpcId"/>.
         /// </summary>
         public static ActorResolution ResolveActorAndMap(
             ToolCallArgs args,
             string pawnIdKey = "pawn_id",
-            bool fallbackToAnyActiveColonist = false)
+            bool fallbackToAnyActiveColonist = false,
+            JObject? parsedArgs = null)
         {
+            var root = parsedArgs ?? CompositeToolCallBase.ParseArgumentsObject(args.ArgumentsJson);
             bool anyIdSupplied = false;
 
-            Pawn? TryResolve(int id)
+            Pawn? TryResolve(int id, out Map? resolvedMap)
             {
+                resolvedMap = null;
                 if (id <= 0) return null;
                 anyIdSupplied = true;
-                var p = RimMindPawnLookup.FindPawnByNumber(id);
-                return p != null && RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed ? p : null;
+                if (ActorMapResolver.ResolveColonistAndMap(id, allowDowned: false, out var pawn, out var map, out _, args.TraceId))
+                {
+                    resolvedMap = map;
+                    return pawn;
+                }
+                return null;
             }
 
             Pawn? actor = null;
-            if (CompositeToolCallBase.TryGetArgument<int>(args.ArgumentsJson, pawnIdKey, out int argPawnId))
-                actor = TryResolve(argPawnId);
+            Map? actorMap = null;
+
+            if (CompositeToolCallBase.TryReadArgument<int>(root, pawnIdKey, out int argPawnId))
+                actor = TryResolve(argPawnId, out actorMap);
             if (actor == null && args.PawnId.HasValue)
-                actor = TryResolve(args.PawnId.Value);
-            if (actor == null && CompositeToolCallBase.TryParsePawnIdString(args.NpcId, out int npcPawnId))
-                actor = TryResolve(npcPawnId);
+                actor = TryResolve(args.PawnId.Value, out actorMap);
+            if (actor == null && CompositeToolCallBase.TryParsePawnId(args.NpcId, out int npcPawnId))
+                actor = TryResolve(npcPawnId, out actorMap);
 
             if (actor != null)
-                return new ActorResolution(actor, actor.Map, null);
+                return new ActorResolution(actor, actorMap ?? actor.Map, null);
 
             if (anyIdSupplied)
             {
@@ -141,9 +151,9 @@ namespace RimMind.Actions.Policies
                         "Requested colonist is not an active, standing colonist on any map (dead, downed, off-map, prisoner or not a colonist)."));
             }
 
-            var map = Find.CurrentMap;
+            var map = ActorMapResolver.ResolveMap(null);
             return new ActorResolution(
-                fallbackToAnyActiveColonist ? ResolveColonistOnMap(map, args, pawnIdKey, true) : null,
+                fallbackToAnyActiveColonist ? ResolveColonistOnMap(map, args, pawnIdKey, true, root) : null,
                 map,
                 null);
         }
@@ -157,11 +167,14 @@ namespace RimMind.Actions.Policies
             Map? map,
             ToolCallArgs args,
             string pawnIdKey = "pawn_id",
-            bool fallbackToAnyActiveColonist = false)
+            bool fallbackToAnyActiveColonist = false,
+            JObject? parsedArgs = null)
         {
             var spawnedColonists = RimMindPawnLookup.GetSpawnedColonistsSafe(map);
             if (spawnedColonists.Count == 0)
                 return null;
+
+            var root = parsedArgs ?? CompositeToolCallBase.ParseArgumentsObject(args.ArgumentsJson);
 
             Pawn? FindActiveColonistById(int id)
             {
@@ -175,7 +188,7 @@ namespace RimMind.Actions.Policies
                 return null;
             }
 
-            if (CompositeToolCallBase.TryGetArgument<int>(args.ArgumentsJson, pawnIdKey, out int argPawnId) && argPawnId > 0)
+            if (CompositeToolCallBase.TryReadArgument<int>(root, pawnIdKey, out int argPawnId) && argPawnId > 0)
             {
                 var byArg = FindActiveColonistById(argPawnId);
                 if (byArg != null) return byArg;
@@ -187,7 +200,7 @@ namespace RimMind.Actions.Policies
                 if (byContext != null) return byContext;
             }
 
-            if (CompositeToolCallBase.TryParsePawnIdString(args.NpcId, out int npcPawnId) && npcPawnId > 0)
+            if (CompositeToolCallBase.TryParsePawnId(args.NpcId, out int npcPawnId) && npcPawnId > 0)
             {
                 var byNpc = FindActiveColonistById(npcPawnId);
                 if (byNpc != null) return byNpc;

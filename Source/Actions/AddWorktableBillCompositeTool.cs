@@ -38,6 +38,7 @@ namespace RimMind.Actions.Actions
         };
 
         protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.WorktableBills;
+        protected override ToolScope? ToolScopes => ToolScope.ColonyBuild;
         protected override IReadOnlyList<string> ToolAliases => Aliases;
         protected override bool IsSelfTargetedTool => false;
         protected override string? DisplayName => "Add Worktable Bill";
@@ -69,7 +70,8 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            if (!TryGetArgument<string>(args.ArgumentsJson, "recipe_def", out var recipeDefName)
+            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
+            if (!TryGetArgument<string>(argsRoot, "recipe_def", out var recipeDefName)
                 || string.IsNullOrWhiteSpace(recipeDefName))
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -77,9 +79,9 @@ namespace RimMind.Actions.Actions
             }
 
 #if RIMMIND_ACTIONS_TESTS
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.WorktableBills;
-            if (TryGetArgument<int>(args.ArgumentsJson, "pawn_id", out int testPawnId) && testPawnId > 0)
+            if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
             {
                 var guard = GuardColonistTarget(testPawnId, domain, args);
                 if (guard.IsErr)
@@ -90,7 +92,7 @@ namespace RimMind.Actions.Actions
             return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
                 ToolResult.Ok($"Added bill {recipeDefName}", args.ToolCallId, Id)));
 #else
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
             if (actorResolution.Error != null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -135,7 +137,7 @@ namespace RimMind.Actions.Actions
             }
 
             // 3. Resolve Target WorkTable
-            TryGetArgument<string>(args.ArgumentsJson, "worktable_def", out var worktableDefName);
+            TryGetArgument<string>(argsRoot, "worktable_def", out var worktableDefName);
             Building_WorkTable? targetWorktable = null;
 
             var playerWorktables = map.listerBuildings?.allBuildingsColonist
@@ -232,10 +234,10 @@ namespace RimMind.Actions.Actions
             }
 
             // 5. Parse Options and Create Bill
-            TryGetArgument<int>(args.ArgumentsJson, "target_count", out var targetCount);
+            TryGetArgument<int>(argsRoot, "target_count", out var targetCount);
             if (targetCount <= 0) targetCount = 10;
 
-            TryGetArgument<string>(args.ArgumentsJson, "repeat_mode", out var repeatModeStr);
+            TryGetArgument<string>(argsRoot, "repeat_mode", out var repeatModeStr);
             bool isRepeatCount = string.Equals(repeatModeStr, "RepeatCount", StringComparison.OrdinalIgnoreCase);
 
             var newBill = recipeDef.MakeNewBill() as Bill_Production ?? new Bill_Production(recipeDef);

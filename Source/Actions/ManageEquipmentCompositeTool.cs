@@ -39,6 +39,7 @@ namespace RimMind.Actions.Actions
         };
 
         protected override AutonomyDomain? DefaultAutonomyDomain => AutonomyDomain.EmergencySurvival;
+        protected override ToolScope? ToolScopes => ToolScope.ColonistSelf;
         protected override IReadOnlyList<string> ToolAliases => Aliases;
         protected override bool IsSelfTargetedTool => true;
         protected override string? DisplayName => "Manage Equipment";
@@ -58,13 +59,14 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
+            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
 #if RIMMIND_ACTIONS_TESTS
-            var pawnIdResult = TryGetPawnIdOrError(args, "pawn_id");
+            var pawnIdResult = TryGetPawnIdOrError(argsRoot, args, "pawn_id");
             if (pawnIdResult.IsErr)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(pawnIdResult.Error));
             }
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.EmergencySurvival;
             var guard = GuardColonistTarget(pawnIdResult.Value, domain, args);
             if (guard.IsErr)
@@ -73,7 +75,7 @@ namespace RimMind.Actions.Actions
             }
             return Task.FromResult(Result<ToolResult, RimMindError>.Ok(ToolResult.Ok("ok", args.ToolCallId, Id)));
 #else
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true);
+            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
             if (actorResolution.Error != null)
             {
                 return Task.FromResult(Result<ToolResult, RimMindError>.Err(
@@ -96,7 +98,7 @@ namespace RimMind.Actions.Actions
                     RimMindErrors.InvalidAction(Id, "Colonist pawn not found or invalid.")));
             }
 
-            var domain = ResolveAutonomyDomain(TryParseArgumentsObject(args.ArgumentsJson), args)
+            var domain = ResolveAutonomyDomain(argsRoot, args)
                 ?? AutonomyDomain.EmergencySurvival;
             var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, args);
             if (!permCheck.IsOk)
@@ -116,10 +118,10 @@ namespace RimMind.Actions.Actions
             }
 
             // 2. Evaluate Purpose and Conditions
-            TryGetArgument<string>(args.ArgumentsJson, "purpose", out var purposeStr);
+            TryGetArgument<string>(argsRoot, "purpose", out var purposeStr);
             if (string.IsNullOrWhiteSpace(purposeStr)) purposeStr = "Auto";
 
-            TryGetArgument<string>(args.ArgumentsJson, "target_apparel_def", out var targetApparelDefName);
+            TryGetArgument<string>(argsRoot, "target_apparel_def", out var targetApparelDefName);
 
             float ambientTemp = pawn.Position.GetTemperature(map);
             float minComfy = pawn.GetStatValue(StatDefOf.ComfyTemperatureMin);
