@@ -9,13 +9,13 @@
     <li>1.7</li>
   </supportedVersions>
   <description>[h1]RimMind - Actions (v2.0)[/h1]
-Composite ToolCall orchestration and tactical emergency execution engine for RimWorld colonists. Translates high-level AI intentions into safe, multi-step in-game operations—covering battlefield triage, autonomous blueprint construction, agricultural cycles, social interactions, and survival responses.
+Composite ToolCall orchestration and tactical emergency execution engine for RimWorld colonists. Translates high-level AI intentions into safe, multi-step in-game operations—covering battlefield triage, spatial blueprint construction, room planning, resource designation, worktable bills, zone management, survival apparel, and buildable-structure queries.
 
 [b]v2.0 Clean Architecture &amp; RimWorld 1.6 / 1.7 Dual-Version Support:[/b]
 [list]
 [*][b]RimWorld 1.6 &amp; 1.7 (Waylith / .NET 10) Ready[/b]: Native multi-target compilation supporting both RimWorld 1.6 (.NET Framework 4.8) and RimWorld 1.7 (.NET 10 / Harmony 2.x &amp; 3.x).
-[*][b]v2.0 Composite ToolCall Architecture[/b]: Combines atomic Core mechanisms into stateful, multi-stage workflows registered purely through [code]RimMind-Core[/code] public ToolCall contracts.
-[*][b]Multi-Stage Job Polling &amp; Safety Gates[/b]: Continuously tracks complex jobs (such as [code]Blueprint_Build[/code] to [code]Frame[/code] delivery and construction) while enforcing strict material reserve and danger-proximity guards.
+[*][b]v2.0 Composite ToolCall Architecture[/b]: Combines atomic Core mechanisms and Verse operations into self-describing composite tools registered purely through [code]RimMind-Core[/code] public ToolCall contracts.
+[*][b]Spatial Placement &amp; Continuous Construction Chaining[/b]: Evaluates room topology, peer clustering, and interaction cells via [code]ColonySpatialClusterSolver[/code], then chains [code]Blueprint_Build[/code] to [code]Frame[/code] delivery and construction through [code]RimMindAPI.Agent.StartIntentSession[/code].
 [/list]
 
 [h2]What Is RimMind[/h2]
@@ -25,8 +25,8 @@ RimMind is an enterprise-grade, AI-powered RimWorld mod suite. Integrated with L
 [table]
 [tr][th]Mod[/th][th]Responsibility[/th][th]Dependencies[/th][th]GitHub[/th][/tr]
 [tr][td]RimMind-Core[/td][td]LLM runtime, 4-Zone context engine, async queue, ToolCall registry &amp; F8 Hub[/td][td]Harmony[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Core]Link[/url][/td][/tr]
-[tr][td][b]RimMind-Actions[/b][/td][td]Composite ToolCall mechanisms, battlefield triage &amp; autonomous construction[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions]Link[/url][/td][/tr]
-[tr][td]RimMind-Advisor[/td][td]Colonist self-reflective advice cards, 5-domain autonomy &amp; player approval[/td][td]Core, Actions[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor]Link[/url][/td][/tr]
+[tr][td][b]RimMind-Actions[/b][/td][td]11 composite ToolCall mechanisms, spatial construction &amp; tactical survival[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Actions]Link[/url][/td][/tr]
+[tr][td]RimMind-Advisor[/td][td]Colonist self-reflective advice cards, 5-domain autonomy &amp; player approval[/td][td]Core (optional: Actions)[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Advisor]Link[/url][/td][/tr]
 [tr][td]RimMind-Dialogue[/td][td]Contextual spoken dialogue via express_dialogue ToolCall &amp; speech bubbles[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Dialogue]Link[/url][/td][/tr]
 [tr][td]RimMind-Memory[/td][td]3-Tier cognitive memory hierarchy, work aggregation &amp; temporal decay[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Memory]Link[/url][/td][/tr]
 [tr][td]RimMind-Personality[/td][td]Big-Five psychological profiles, dawn monologues &amp; dynamic mood thoughts[/td][td]Core[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Personality]Link[/url][/td][/tr]
@@ -35,7 +35,8 @@ RimMind is an enterprise-grade, AI-powered RimWorld mod suite. Integrated with L
 [tr][td]RimMind-Bridge-RimChat[/td][td]RimChat compatibility bridge: dialogue/action mutual exclusion &amp; context sync[/td][td]Core, RimChat[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimChat]Link[/url][/td][/tr]
 [tr][td]RimMind-Bridge-RimTalk[/td][td]RimTalk compatibility bridge: bubble harmonization &amp; bidirectional context[/td][td]Core, RimTalk[/td][td][url=https://github.com/RimWorld-RimMind-Mod/RimWorld-RimMind-Mod-Bridge-RimTalk]Link[/url][/td][/tr]
 [/table]
-[code]Core ──┬── Actions ── Advisor
+[code]Core ──┬── Actions (optional with Advisor)
+       ├── Advisor
        ├── Dialogue
        ├── Memory ── Storyteller
        ├── Personality
@@ -45,38 +46,37 @@ RimMind is an enterprise-grade, AI-powered RimWorld mod suite. Integrated with L
 
 [h2]Core Features[/h2]
 [list]
-[*][b]10 Built-In Composite Mechanisms[/b] - High-level orchestrated tools covering emergency survival, construction engineering, and agricultural production.
-[*][b]ContinuousJobPoller Multi-Stage Lifecycle[/b] - Tracks multi-step Verse job execution across ticks, seamlessly advancing from blueprint placement to material hauling and frame completion.
-[*][b]ActionPermissionGuard &amp; ResourceSafetyGuard[/b] - Validates active spawned colonist eligibility, work-type capabilities, hostile threat proximity, and colony resource reserve thresholds before executing any job.
-[*][b]Graded Risk Control[/b] - Every action carries an explicit risk classification ([i]Low / Medium / High / Critical[/i]) that integrates directly with Core's 3-Tier Autonomy and Advisor's player approval workflow.
-[*][b]Main-Thread Safe Execution[/b] - Dispatches all Verse and Unity side effects safely on the main game thread.
+[*][b]11 Built-In Composite Tools[/b] - High-level orchestrated tools covering emergency survival, spatial construction, resource designation, worktable bills, zones, equipment, and dynamic structure queries.
+[*][b]ConstructionIntentChainer &amp; Spatial Placement[/b] - Scores candidate cells using room roles, wall adjacency, and footprints, then attaches continuous [code]Blueprint_Build[/code] to [code]Frame[/code] construction leases via [code]RimMindAPI.Agent.StartIntentSession[/code].
+[*][b]ActionPermissionGuard &amp; ResourceSafetyGuard[/b] - Validates active spawned colonist eligibility, tri-state autonomy permissions, fixed and stuffed material costs, and concurrent blueprint caps before mutating map state.
+[*][b]Self-Describing Tool Manifests[/b] - Every tool declares explicit autonomy domains, risk levels, scopes, and aliases through [code]ToolManifest[/code] and [code]IToolPolicyClassifier[/code].
+[*][b]Main-Thread Safe Execution[/b] - Enforces Unity main-thread guards and executes all Verse mutations safely on the main game thread.
 [/list]
 
-[h2]Composite &amp; Atomic Action Catalog[/h2]
+[h2]Composite Tool Catalog[/h2]
 [table]
-[tr][th]Category[/th][th]Actions &amp; Mechanisms[/th][/tr]
-[tr][td]Emergency &amp; Survival[/td][td]actions.stabilize_rest, actions.emergency_flee, actions.eat_and_recreation, actions.triage_patient, force_rest, eat_food, tend_pawn, rescue_pawn[/td][/tr]
-[tr][td]Construction &amp; Engineering[/td][td]actions.place_blueprint, actions.plan_room_project, actions.clear_area_for_build[/td][/tr]
-[tr][td]Production &amp; Agriculture[/td][td]actions.designated_harvest, actions.set_work_bill, actions.schedule_farming_cycle, assign_work, set_work_priority[/td][/tr]
-[tr][td]Social &amp; Mood[/td][td]social_dining, social_relax, give_item, romance_accept, romance_breakup, inspire_work, add_thought[/td][/tr]
-[tr][td]Combat &amp; Tactical[/td][td]draft, undraft, move_to, drop_weapon, cancel_job[/td][/tr]
+[tr][th]Category[/th][th]Composite Tools[/th][/tr]
+[tr][td]Emergency &amp; Survival[/td][td]actions.stabilize_rest, actions.emergency_flee, actions.eat_and_recreation, actions.triage_patient, actions_manage_equipment[/td][/tr]
+[tr][td]Construction &amp; Spatial Query[/td][td]actions_place_blueprint, actions_plan_room_project, actions_query_buildable_structures[/td][/tr]
+[tr][td]Production, Zones &amp; Resources[/td][td]actions_designate_resources, actions_add_worktable_bill, actions_manage_zone[/td][/tr]
 [/table]
 
-[h2]Risk Grading System[/h2]
+[h2]Risk &amp; Autonomy Control[/h2]
 [table]
-[tr][th]Risk Level[/th][th]Description[/th][th]Examples[/th][/tr]
-[tr][td]Low[/td][td]Easily reversible routine operations[/td][td]move_to, assign_work, cancel_job, undraft[/td][/tr]
-[tr][td]Medium[/td][td]Moderate impact on survival, work, or social state[/td][td]stabilize_rest, eat_and_recreation, designated_harvest, social_dining, set_work_bill[/td][/tr]
-[tr][td]High[/td][td]Resource-consuming or structural colony changes[/td][td]place_blueprint, plan_room_project, triage_patient, draft, drop_weapon[/td][/tr]
-[tr][td]Critical[/td][td]Major colony-wide or irreversible impacts[/td][td]trigger_mental_state, trigger_incident[/td][/tr]
+[tr][th]Autonomy Domain[/th][th]Default Risk[/th][th]Composite Tools[/th][/tr]
+[tr][td]EmergencySurvival[/td][td]Low[/td][td]actions.stabilize_rest, actions.emergency_flee, actions.eat_and_recreation, actions.triage_patient, actions_manage_equipment, survival cooking bills[/td][/tr]
+[tr][td]ResourceMarking[/td][td]Medium[/td][td]actions_designate_resources, actions_manage_zone[/td][/tr]
+[tr][td]WorktableBills[/td][td]Medium[/td][td]actions_add_worktable_bill (non-survival crafting)[/td][/tr]
+[tr][td]BlueprintPlacement[/td][td]Medium[/td][td]actions_place_blueprint, actions_plan_room_project[/td][/tr]
+[tr][td]Read-Only Query[/td][td]Low[/td][td]actions_query_buildable_structures[/td][/tr]
 [/table]
 
 [h2]Frequently Asked Questions[/h2]
 [b]Q: Can RimMind-Actions be used standalone?[/b]
-A: Actions registers composite tools into [code]RimMind-Core[/code]. Pair it with [code]RimMind-Advisor[/code] so AI colonists can autonomously propose and execute these mechanisms.
+A: Actions registers 11 composite tools into [code]RimMind-Core[/code]. Pair it with [code]RimMind-Advisor[/code] so AI colonists can autonomously propose and execute these tools.
 
 [b]Q: Will AI colonists waste scarce resources on blueprints?[/b]
-A: No. [code]ResourceSafetyGuard[/code] verifies colony material reserves before placing blueprints, and high-impact actions respect your approval settings.</description>
+A: No. [code]ResourceSafetyGuard[/code] verifies both stuffed and fixed material requirements against colony reserves and caps concurrent active blueprints before placing any blueprint.</description>
   <modDependencies>
     <li>
       <packageId>brrainz.harmony</packageId>

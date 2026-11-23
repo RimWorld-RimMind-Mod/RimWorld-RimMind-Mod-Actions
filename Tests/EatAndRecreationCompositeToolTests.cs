@@ -72,6 +72,32 @@ namespace RimMind.Actions.Tests
             Assert.Null(thought.ReceivedArgs); // no Catharsis mood buff injection
         }
 
+        [Theory]
+        [InlineData("eat", "eat_food")]
+        [InlineData("rest", "force_rest")]
+        public async Task ExecuteAsync_ExplicitMode_Selects_Eat_Or_Rest_Job(string mode, string expectedAction)
+        {
+            var registry = new FakeToolRegistry();
+            var job = new RecordingHandler("pawn.job.set", ToolResult.Ok("ok"));
+            registry.Register(job);
+            RimMindAPI.Tools = registry;
+
+            var tool = new EatAndRecreationCompositeTool();
+            var result = await tool.ExecuteAsync(
+                new ToolCallArgs
+                {
+                    ToolCallId = "parent-eat-mode",
+                    ToolName = "actions.eat_and_recreation",
+                    ArgumentsJson = $"{{\"pawn_id\":100,\"mode\":\"{mode}\",\"reason\":\"localized-text\"}}"
+                },
+                CancellationToken.None);
+
+            Assert.True(result.IsOk);
+            Assert.NotNull(job.ReceivedArgs);
+            var jobArgs = JObject.Parse(job.ReceivedArgs!.ArgumentsJson);
+            Assert.Equal(expectedAction, jobArgs["action"]?.Value<string>());
+        }
+
         [Fact]
         public void Definition_And_RequiredToolIds_AreAccurate()
         {

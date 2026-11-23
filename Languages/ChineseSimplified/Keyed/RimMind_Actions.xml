@@ -17,7 +17,7 @@
   <RimMind.Actions.Zone.NoValidCells>未能成功划定有效格子。</RimMind.Actions.Zone.NoValidCells>
   <RimMind.Actions.Zone.DesignateSuccess>成功在中心 ({0}, {1}) 自主划定 {2}，已激活生效。</RimMind.Actions.Zone.DesignateSuccess>
   <RimMind.Actions.Room.SiteSelectionFailed>[选址失败] 在领地附近未找到能够容纳 {0}x{0} 建筑物的开阔坚固平整地块。</RimMind.Actions.Room.SiteSelectionFailed>
-  <RimMind.Actions.Room.PlanSuccess>成功规划并在中心 ({0}, {1}) 放置 {2} 个微型房间蓝图 ({3}x{3} 木墙/门/床/光源)。</RimMind.Actions.Room.PlanSuccess>
+  <RimMind.Actions.Room.PlanSuccess>成功规划并在中心 ({0}, {1}) 放置 {2} 个微型房间蓝图 ({3}x{3} 墙体/门/床/光源)。</RimMind.Actions.Room.PlanSuccess>
   <RimMind.Actions.Room.LeaseChained> 已为建造主力 {0} 挂接复合工程连续施工租约。</RimMind.Actions.Room.LeaseChained>
   <RimMind.Actions.Blueprint.DefaultMaterials>默认材料</RimMind.Actions.Blueprint.DefaultMaterials>
   <RimMind.Actions.Blueprint.PlaceSuccess>成功在 ({1}, {2}) 放置 {0} 蓝图（材料：{3}）。</RimMind.Actions.Blueprint.PlaceSuccess>

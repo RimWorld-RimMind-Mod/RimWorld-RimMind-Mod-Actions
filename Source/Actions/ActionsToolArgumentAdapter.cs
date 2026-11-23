@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
+using RimMind.Application.Common.Constants;
 using RimMind.Application.Common.Interfaces.Tools;
 using RimMind.Domain.Agent.Modes;
 
@@ -9,11 +11,27 @@ namespace RimMind.Actions.Actions
     /// Adapts raw <see cref="AgentDecision"/> arguments for RimMind-Actions composite tools
     /// (such as crop/food designation inference and autonomous recovery reason defaults).
     /// Registered via <see cref="CompositeToolRegistrar"/> so Core has zero hard-coded Actions heuristics.
+    /// Tool IDs and aliases are derived from the composite tool definitions themselves rather than duplicated.
     /// </summary>
     public sealed class ActionsToolArgumentAdapter : IToolArgumentAdapter
     {
+        private static readonly HashSet<string> ResourceDesignationIds = BuildIdSet(new DesignateResourcesCompositeTool());
+        private static readonly HashSet<string> AutonomousRecoveryIds = BuildIdSet(
+            new EatAndRecreationCompositeTool(),
+            new StabilizeRestCompositeTool());
+
+        private static readonly string[] FoodCropKeywords =
+        {
+            "berr", "food", "edible", "crop", "rice", "potato", "corn", "healroot", "agave", "ambrosia"
+        };
+
+        private static readonly string[] HuntKeywords =
+        {
+            "hunt", "meat", "animal"
+        };
+
         public string Id => "actions_tool_argument_adapter";
-        public string OwnerModId => "RimMindActions";
+        public string OwnerModId => RimMindOwnerConsts.ActionsModId;
 
         public bool CanAdapt(string toolId)
         {
@@ -42,35 +60,36 @@ namespace RimMind.Actions.Actions
             return obj;
         }
 
+        private static HashSet<string> BuildIdSet(params CompositeToolCallBase[] tools)
+        {
+            var set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < tools.Length; i++)
+            {
+                var tool = tools[i];
+                set.Add(tool.Id);
+                var aliases = tool.Manifest.Aliases;
+                if (aliases != null)
+                {
+                    for (int j = 0; j < aliases.Count; j++)
+                    {
+                        if (!string.IsNullOrWhiteSpace(aliases[j]))
+                            set.Add(aliases[j]);
+                    }
+                }
+            }
+            return set;
+        }
+
         private static bool IsResourceDesignationTool(string toolId)
-            => string.Equals(toolId, "actions_designate_resources", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "actions.designate_resources", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "designate_resources", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "designate_map_order", StringComparison.OrdinalIgnoreCase);
+            => !string.IsNullOrWhiteSpace(toolId) && ResourceDesignationIds.Contains(toolId.Trim());
 
         private static bool IsAutonomousRecoveryTool(string toolId)
-            => string.Equals(toolId, "actions.eat_and_recreation", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "actions_eat_and_recreation", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "eat_and_recreation", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "calm_recreation", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "actions.stabilize_rest", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "actions_stabilize_rest", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(toolId, "stabilize_rest", StringComparison.OrdinalIgnoreCase);
+            => !string.IsNullOrWhiteSpace(toolId) && AutonomousRecoveryIds.Contains(toolId.Trim());
 
         private static void AdaptResourceDesignationArguments(JObject obj)
         {
-            string targetStr = (obj["target"]?.ToString() ?? obj["target_name"]?.ToString() ?? "").Trim();
-            bool isFoodOrCropTarget =
-                targetStr.IndexOf("berr", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("food", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("edible", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("crop", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("rice", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("potato", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("corn", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("healroot", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("agave", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                targetStr.IndexOf("ambrosia", StringComparison.OrdinalIgnoreCase) >= 0;
+            string targetStr = (obj["target"]?.ToString() ?? obj["target_name"]?.ToString() ?? string.Empty).Trim();
+            bool isFoodOrCropTarget = ContainsAnyKeyword(targetStr, FoodCropKeywords);
 
             if (obj.TryGetValue("order_type", StringComparison.OrdinalIgnoreCase, out var otVal))
             {
@@ -88,13 +107,21 @@ namespace RimMind.Actions.Actions
             }
             else if (!obj.ContainsKey("designation_type"))
             {
-                obj["designation_type"] = IsHuntTarget(targetStr) ? "Hunt" : (isFoodOrCropTarget ? "Harvest" : "ChopWood");
+                obj["designation_type"] = ContainsAnyKeyword(targetStr, HuntKeywords)
+                    ? "Hunt"
+                    : (isFoodOrCropTarget ? "Harvest" : "ChopWood");
             }
         }
 
-        private static bool IsHuntTarget(string target)
-            => target.IndexOf("hunt", StringComparison.OrdinalIgnoreCase) >= 0
-            || target.IndexOf("meat", StringComparison.OrdinalIgnoreCase) >= 0
-            || target.IndexOf("animal", StringComparison.OrdinalIgnoreCase) >= 0;
+        private static bool ContainsAnyKeyword(string input, string[] keywords)
+        {
+            if (string.IsNullOrEmpty(input)) return false;
+            for (int i = 0; i < keywords.Length; i++)
+            {
+                if (input.IndexOf(keywords[i], StringComparison.OrdinalIgnoreCase) >= 0)
+                    return true;
+            }
+            return false;
+        }
     }
 }

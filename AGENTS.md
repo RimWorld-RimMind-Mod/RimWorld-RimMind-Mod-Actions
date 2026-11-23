@@ -16,36 +16,45 @@ H2 阶段后，24 个内置动作已全部迁移至 Core Mechanism 系统。本�
 
 | 项 | 值 |
 |----|-----|
-| Target | net48, C#9.0, Nullable enable |
-| Output | `../1.6/Assemblies/` |
+| Target | RimWorld 1.6 (`net48`) & 1.7 (`net10.0`), C# 9.0, Nullable enable |
+| Output | `../1.6/Assemblies/` / `../1.7/Assemblies/` |
 | Assembly | RimMindActions, RootNS: RimMind.Actions |
-| 依赖 | Krafs.Rimworld.Ref, Lib.Harmony.Ref, Newtonsoft.Json, RimMindCore (Domain/Application) |
+| 依赖 | Krafs.Rimworld.Ref, Lib.Harmony.Ref, Newtonsoft.Json, Core 公共程序集 (`0_RimMindDomain`, `1_RimMindApplication`, `2_RimMindCore`, `<Private>false</Private>`) |
 
 ## 源码结构
 
 ```
 Source/
-├── RimMindActionsMod.cs                              Mod 入口，反射注册组合工具
+├── RimMindActionsMod.cs                              Mod 入口，反射注册组合工具与参数适配器
 ├── Actions/
-│   ├── CompositeToolCallBase.cs                      抽象基类：Definition 懒缓存 + ExecuteAtomicAsync + 共享 JSON 辅助
-│   ├── CompositeToolRegistrar.cs                     反射发现并注册所有 CompositeToolCallBase 子类
+│   ├── CompositeToolCallBase.cs                      Actions 抽象基类（继承 Core CompositeToolCallBase，提供 ExecuteDirectToolAsync 与权限守卫）
+│   ├── CompositeToolRegistrar.cs                     反射发现并注册所有 CompositeToolCallBase 子类与 ActionsToolArgumentAdapter
+│   ├── ActionsToolArgumentAdapter.cs                 基于工具 Manifest 别名动态派生的参数适配器
+│   ├── ConstructionIntentChainer.cs                  共享材料自动匹配与单/多蓝图连续施工租约挂接
 │   ├── StabilizeRestCompositeTool.cs                 组合工具：undraft → force_rest
 │   ├── EmergencyFleeCompositeTool.cs                 组合工具：紧急撤离危险区
-│   ├── EatAndRecreationCompositeTool.cs              组合工具：休整调理（中断非紧急作业 → 强制休息）
+│   ├── EatAndRecreationCompositeTool.cs              组合工具：休整调理（显式 mode: auto|eat|rest）
 │   ├── TriagePatientCompositeTool.cs                 组合工具：战地救护包扎（病患卧床 + 医生中断杂务）
-│   ├── PlaceBlueprintCompositeTool.cs                组合工具：放置单建筑蓝图并经 RimMindAPI.Agent.StartIntentSession 挂接施工租约
-│   ├── PlanRoomProjectCompositeTool.cs               组合工具：批量规划微型房间蓝图并挂接连续施工租约
-│   ├── DesignateResourcesCompositeTool.cs            组合工具：自动标记地图采集/伐木/采矿目标
-│   ├── AddWorktableBillCompositeTool.cs              组合工具：工作台生产清单创建与防重校验
+│   ├── PlaceBlueprintCompositeTool.cs                组合工具：空间评分放置单建筑蓝图并挂接施工租约
+│   ├── PlanRoomProjectCompositeTool.cs               组合工具：批量规划微型房间蓝图并做整项目材料安全校验
+│   ├── DesignateResourcesCompositeTool.cs            组合工具：自动标记采集/伐木/采矿/狩猎目标
+│   ├── AddWorktableBillCompositeTool.cs              组合工具：工作台生产清单创建、防重与动态生存配方判定
 │   ├── ManageZoneCompositeTool.cs                    组合工具：肥力评估与种植区/储物区自动划定
-│   ├── ManageEquipmentCompositeTool.cs               组合工具：严寒/威胁下自主穿戴保暖或防具装备
-│   └── QueryBuildableStructuresCompositeTool.cs      组合查询：已解锁可建建筑、库存材料与基建瓶颈检测
+│   ├── ManageEquipmentCompositeTool.cs               组合工具：严寒/酷热/威胁下自主穿戴保暖或防具装备
+│   └── QueryBuildableStructuresCompositeTool.cs      组合查询：动态发现已解锁建筑、空间图与动态基建瓶颈检测
 ├── Debug/
 │   └── ActionsBehaviorAutotestSuite.cs               游戏内组合工具行为自测套件
-└── Policies/
-    ├── ActionPermissionGuard.cs                      跨地图执行者解析、三态自治权限校验与本地化回退辅助
-    ├── ResourceSafetyGuard.cs                        地图实时库存/蓝图数统计与安全守卫桥接
-    └── ResourceSafetyPolicy.cs                       纯策略：木材/钢铁保底红线与并发蓝图上限熔断
+├── Policies/
+│   ├── ActionPermissionGuard.cs                      跨地图执行者解析、三态自治权限校验与本地化回退辅助
+│   ├── BuildableStructureCatalogPolicy.cs            可建结构动态分类、材料摘要格式化、负担力评估与排序
+│   ├── ResourceSafetyGuard.cs                        地图实时库存/蓝图数统计与单/多项目材料安全守卫
+│   └── ResourceSafetyPolicy.cs                       纯策略：木材/钢铁保底红线、项目消耗与并发蓝图上限熔断
+└── Spatial/
+    ├── SpatialGridModels.cs                          空间快照、房间摘要与候选评分数据模型
+    ├── SpatialBuildingClassifier.cs                  委托 BuildableStructureCatalogPolicy 的空间语义分类器
+    ├── SpatialAsciiRenderer.cs                       紧凑 ASCII 基地拓扑渲染器
+    ├── ColonySpatialClusterSolver.cs                 房间亲和度、同类聚簇与交互格选址求解器
+    └── MapSpatialSnapshotBuilder.cs                  实时地图空间拓扑快照构造器
 ```
 
 ## 关键 API

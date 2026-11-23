@@ -112,7 +112,7 @@ namespace RimMind.Actions.Debug
                 };
 
                 var boundaryResult = tool.ExecuteAsync(invalidArgs, CancellationToken.None).GetAwaiter().GetResult();
-                context.Assert(boundaryResult.IsOk || boundaryResult.IsErr, "Negative boundary pawn_id = -9999 handled gracefully without uncaught exception");
+                context.Assert(boundaryResult.IsErr, "Negative boundary pawn_id = -9999 returns structured error without uncaught exception");
             }
             catch (Exception ex)
             {
@@ -198,7 +198,7 @@ namespace RimMind.Actions.Debug
                             var map = context.CurrentMap ?? pawn.Map;
                             if (map?.listerThings != null)
                             {
-                                var cleanupBlueprints = map.listerThings.AllThings
+                                var cleanupBlueprints = map.listerThings.ThingsInGroup(ThingRequestGroup.Blueprint)
                                     .Where(t => t != null && !t.Destroyed && t.def.IsBlueprint && t.def.entityDefToBuild?.defName == "SleepingSpot")
                                     .ToList();
                                 foreach (var bp in cleanupBlueprints)

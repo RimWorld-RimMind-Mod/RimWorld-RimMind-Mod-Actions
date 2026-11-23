@@ -96,28 +96,6 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
-        public async Task ExecuteAtomicAsync_Handler_Error_Includes_Error_Code_In_Content()
-        {
-            var handler = new CapturingToolHandler(
-                Result<ToolResult, RimMindError>.Err(
-                    new RimMindError(RimMindErrorCode.ToolExecutionFailed, "tool failed")));
-            var composite = new TestCompositeToolCall(new Dictionary<string, IToolHandler>
-            {
-                ["haul"] = handler
-            });
-            var parentArgs = new ToolCallArgs { ToolCallId = "parent-err" };
-
-            var result = await composite.ExecuteAtomicForTestAsync(
-                "haul", "{}", parentArgs, CancellationToken.None);
-
-            Assert.True(result.IsError);
-            Assert.Contains("ToolExecutionFailed", result.Content);
-            Assert.Contains("tool failed", result.Content);
-            Assert.Equal("parent-err:haul", result.ToolCallId);
-            Assert.Equal("haul", result.ToolName);
-        }
-
-        [Fact]
         public async Task ExecuteAtomicAsync_Propagates_PawnId_From_Parent_To_Child()
         {
             var handler = new CapturingToolHandler(

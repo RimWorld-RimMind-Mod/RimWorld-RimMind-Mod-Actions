@@ -9,6 +9,7 @@ using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.ValueObjects;
 #if !RIMMIND_ACTIONS_TESTS
 using RimWorld;
+using Verse.AI;
 #endif
 using Verse;
 
@@ -48,7 +49,7 @@ namespace RimMind.Actions.Actions
             Id = Id,
             Category = "action",
             Description = "Autonomously designates resources on the map for colonist worktab execution (e.g. harvesting ripe wild berries/healroot, chopping mature trees for wood, or mining exposed mineral veins).",
-            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"designation_type\":{\"type\":\"string\",\"description\":\"Type of designation: 'Harvest' (ripe wild food/plants), 'ChopWood' (mature timber trees), 'Mine' (mineral ores), or 'Hunt' (safe wild animals for meat when food is low).\"},\"radius\":{\"type\":\"integer\",\"description\":\"Search radius in tiles from anchor colonist/base center (default: 25, max: 60).\"},\"target_name\":{\"type\":\"string\",\"description\":\"Optional filter for specific defName or label (e.g. 'Plant_Berry', 'Plant_TreeOak', 'MineableSteel').\"},\"max_count\":{\"type\":\"integer\",\"description\":\"Maximum number of items to designate in one call (default: 15, max: 50).\"},\"pawn_id\":{\"type\":\"integer\",\"description\":\"Optional colonist pawn ID to center search and check autonomy permissions.\"}},\"required\":[\"designation_type\"]}"
+            ParametersSchema = "{\"type\":\"object\",\"properties\":{\"designation_type\":{\"type\":\"string\",\"description\":\"Type of designation: 'Harvest' (ripe wild food/plants), 'ChopWood' (mature timber trees), 'Mine' (mineral ores), or 'Hunt' (safe wild animals for meat when food is low).\"},\"radius\":{\"type\":\"integer\",\"description\":\"Search radius in tiles from anchor colonist/base center (default: 60, max: 120).\"},\"target_name\":{\"type\":\"string\",\"description\":\"Optional filter for specific defName or label (e.g. 'Plant_Berry', 'Plant_TreeOak', 'MineableSteel').\"},\"max_count\":{\"type\":\"integer\",\"description\":\"Maximum number of items to designate in one call (default: 15, max: 50).\"},\"pawn_id\":{\"type\":\"integer\",\"description\":\"Optional colonist pawn ID to center search and check autonomy permissions.\"}},\"required\":[\"designation_type\"]}"
         };
 
         public override IReadOnlyList<string> RequiredToolIds => Array.Empty<string>();
@@ -57,304 +58,309 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
-            if (!TryGetArgument<string>(argsRoot, "designation_type", out var designationTypeStr)
-                || string.IsNullOrWhiteSpace(designationTypeStr))
+            return ExecuteDirectToolAsync(args, (argsRoot, effectiveArgs, _) =>
             {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, "Missing required parameter 'designation_type' (Harvest, ChopWood, Mine, or Hunt).")));
-            }
+                if (!TryGetArgument<string>(argsRoot, "designation_type", out var designationTypeStr)
+                    || string.IsNullOrWhiteSpace(designationTypeStr))
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id, "Missing required parameter 'designation_type' (Harvest, ChopWood, Mine, or Hunt).") with { TraceId = effectiveArgs.TraceId }));
+                }
 
 #if RIMMIND_ACTIONS_TESTS
-            var domain = ResolveAutonomyDomain(argsRoot, args)
-                ?? AutonomyDomain.ResourceMarking;
-            if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
-            {
-                var guard = GuardColonistTarget(testPawnId, domain, args);
-                if (guard.IsErr)
+                var domain = ResolveAutonomyDomain(argsRoot, effectiveArgs)
+                    ?? AutonomyDomain.ResourceMarking;
+                if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
                 {
-                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                    var guard = GuardColonistTarget(testPawnId, domain, effectiveArgs);
+                    if (guard.IsErr)
+                    {
+                        return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                    }
                 }
-            }
-            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
-                ToolResult.Ok($"Designated {designationTypeStr}", args.ToolCallId, Id)));
+                return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                    ToolResult.Ok($"Designated {designationTypeStr}", effectiveArgs.ToolCallId, Id)));
 #else
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
-            if (actorResolution.Error != null)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
-            }
-
-            var map = actorResolution.Map;
-            if (map == null)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.Internal("No active map available for resource designation.")));
-            }
-
-            // 1. Resolve Colonist Pawn and Permission Check
-            Pawn? pawn = actorResolution.Pawn;
-
-            var domain = ResolveAutonomyDomain(argsRoot, args)
-                ?? AutonomyDomain.ResourceMarking;
-            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, args);
-            if (!permCheck.IsOk)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
-            }
-
-            // 2. Resolve Center Cell, Radius, Count Limit, and Filter
-            IntVec3 centerCell = pawn?.Position ?? map.Center;
-
-            TryGetArgument<int>(argsRoot, "radius", out var radius);
-            if (radius <= 0) radius = 60;
-            radius = Math.Max(5, Math.Min(120, radius));
-
-            TryGetArgument<int>(argsRoot, "max_count", out var maxCount);
-            if (maxCount <= 0) maxCount = 15;
-            maxCount = Math.Max(1, Math.Min(50, maxCount));
-
-            TryGetArgument<string>(argsRoot, "target_name", out var targetNameFilter);
-            if (string.IsNullOrWhiteSpace(targetNameFilter))
-            {
-                TryGetArgument<string>(argsRoot, "target", out targetNameFilter);
-            }
-            targetNameFilter = targetNameFilter?.Trim();
-            string rawTarget = targetNameFilter ?? string.Empty;
-            bool targetImpliesTrees =
-                rawTarget.IndexOf("tree", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                rawTarget.IndexOf("wood", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                rawTarget.IndexOf("\u6811", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                rawTarget.IndexOf("\u6728", StringComparison.OrdinalIgnoreCase) >= 0;
-
-            if (IsGenericResourceFilter(targetNameFilter))
-            {
-                targetNameFilter = null;
-            }
-
-            // 3. Resolve DesignationDef and Base Eligibility Predicate (without targetNameFilter)
-            string mode = designationTypeStr.Trim().ToLowerInvariant();
-            DesignationDef desDef;
-            bool isMineMode = false;
-            bool isHarvestNonTreeMode = false;
-            Func<Thing, bool> basePredicate;
-
-            if (mode.Contains("harvest") && !targetImpliesTrees)
-            {
-                desDef = DesignationDefOf.HarvestPlant;
-                isHarvestNonTreeMode = true;
-                basePredicate = t =>
-                    t is Plant plant
-                    && plant.def?.plant != null
-                    && !plant.def.plant.IsTree
-                    && plant.def.plant.Harvestable
-                    && plant.HarvestableNow
-                    && map.designationManager.DesignationOn(plant, desDef) == null;
-            }
-            else if (mode.Contains("chop") || mode.Contains("wood") || mode.Contains("tree") || targetImpliesTrees)
-            {
-                desDef = DesignationDefOf.HarvestPlant;
-                basePredicate = t =>
-                    t is Plant plant
-                    && plant.def?.plant != null
-                    && plant.def.plant.IsTree
-                    && plant.HarvestableNow
-                    && map.designationManager.DesignationOn(plant, desDef) == null;
-            }
-            else if (mode.Contains("cut") || mode.Contains("clear"))
-            {
-                desDef = DesignationDefOf.CutPlant;
-                basePredicate = t =>
-                    t is Plant plant
-                    && !(map.zoneManager?.ZoneAt(plant.Position) is Zone_Growing)
-                    && !(plant.Position.GetEdifice(map) is Building_PlantGrower)
-                    && map.designationManager.DesignationOn(plant, desDef) == null;
-            }
-            else if (mode.Contains("mine") || mode.Contains("ore") || mode.Contains("mineral"))
-            {
-                desDef = DesignationDefOf.Mine;
-                isMineMode = true;
-                basePredicate = t =>
-                    (t.def?.mineable == true || t is Mineable)
-                    && (desDef.targetType == TargetType.Cell
-                        ? map.designationManager.DesignationAt(t.Position, desDef)
-                        : map.designationManager.DesignationOn(t, desDef)) == null;
-            }
-            else if (mode.Contains("hunt") || mode.Contains("meat") || mode.Contains("animal"))
-            {
-                desDef = DesignationDefOf.Hunt;
-                basePredicate = t =>
-                    t is Pawn animal
-                    && !animal.Dead
-                    && !animal.Downed
-                    && animal.RaceProps != null
-                    && animal.RaceProps.Animal
-                    && !animal.RaceProps.Humanlike
-                    && animal.Faction == null
-                    && !animal.RaceProps.predator
-                    && !animal.InAggroMentalState
-                    && animal.RaceProps.manhunterOnDamageChance <= 0.1f
-                    && animal.RaceProps.baseBodySize <= 1.5f
-                    && map.designationManager.DesignationOn(animal, desDef) == null;
-            }
-            else
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, $"Unknown designation type '{designationTypeStr}'. Supported: 'Harvest', 'ChopWood', 'Mine', 'Hunt'.")));
-            }
-
-            // 4. Single-pass bucketed scan over map.listerThings.AllThings
-            //    Bucket 1: within requested radius + matches targetNameFilter
-            //    Bucket 2: within expanded 120-tile radius + matches targetNameFilter
-            //    Bucket 3: within expanded 120-tile radius + unfiltered fallback (when targetNameFilter matched nothing)
-            //    Bucket 4: winter harvest fallback (mature trees when 0 wild edible plants exist)
-            var inRadiusFiltered = new List<Thing>();
-            var mapWideFiltered = new List<Thing>();
-            var mapWideUnfiltered = new List<Thing>();
-            var winterTreeFallback = new List<Thing>();
-
-            bool hasFilter = !string.IsNullOrWhiteSpace(targetNameFilter);
-            int expandedRadius = Math.Max(radius, 120);
-            var allSpawnedThings = map.listerThings?.AllThings;
-
-            if (allSpawnedThings != null)
-            {
-                for (int i = 0; i < allSpawnedThings.Count; i++)
+                var actorResolution = ActionPermissionGuard.ResolveActorAndMap(effectiveArgs, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
+                if (actorResolution.Error != null)
                 {
-                    var thing = allSpawnedThings[i];
-                    if (thing == null || !thing.Spawned || thing.Destroyed) continue;
-                    if (thing.Position.Fogged(map)) continue;
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id, actorResolution.Error) with { TraceId = effectiveArgs.TraceId }));
+                }
 
-                    bool inExpanded = thing.Position.InHorDistOf(centerCell, expandedRadius);
-                    if (inExpanded && basePredicate(thing))
+                var map = actorResolution.Map;
+                if (map == null)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.Internal("No active map available for resource designation.") with { TraceId = effectiveArgs.TraceId }));
+                }
+
+                // 1. Resolve Colonist Pawn and Permission Check
+                Pawn? pawn = actorResolution.Pawn;
+
+                var domain = ResolveAutonomyDomain(argsRoot, effectiveArgs)
+                    ?? AutonomyDomain.ResourceMarking;
+                var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, effectiveArgs);
+                if (!permCheck.IsOk)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
+                }
+
+                // 2. Resolve Center Cell, Radius, Count Limit, and Filter
+                IntVec3 centerCell = pawn?.Position ?? map.Center;
+
+                TryGetArgument<int>(argsRoot, "radius", out var radius);
+                if (radius <= 0) radius = 60;
+                radius = Math.Max(5, Math.Min(120, radius));
+
+                TryGetArgument<int>(argsRoot, "max_count", out var maxCount);
+                if (maxCount <= 0) maxCount = 15;
+                maxCount = Math.Max(1, Math.Min(50, maxCount));
+
+                TryGetArgument<string>(argsRoot, "target_name", out var targetNameFilter);
+                if (string.IsNullOrWhiteSpace(targetNameFilter))
+                {
+                    TryGetArgument<string>(argsRoot, "target", out targetNameFilter);
+                }
+                targetNameFilter = targetNameFilter?.Trim();
+                string rawTarget = targetNameFilter ?? string.Empty;
+                var resolvedTargetDef = !string.IsNullOrWhiteSpace(rawTarget)
+                    ? DefDatabase<ThingDef>.GetNamedSilentFail(rawTarget)
+                    : null;
+                bool targetImpliesTrees =
+                    resolvedTargetDef?.plant?.IsTree == true ||
+                    rawTarget.IndexOf("tree", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                    rawTarget.IndexOf("wood", StringComparison.OrdinalIgnoreCase) >= 0;
+
+                if (IsGenericResourceFilter(targetNameFilter, resolvedTargetDef))
+                {
+                    targetNameFilter = null;
+                }
+
+                // 3. Resolve DesignationDef and Base Eligibility Predicate (without targetNameFilter)
+                string mode = designationTypeStr.Trim().ToLowerInvariant();
+                DesignationDef desDef;
+                bool isMineMode = false;
+                bool isHarvestNonTreeMode = false;
+                Func<Thing, bool> basePredicate;
+
+                if (mode.Contains("harvest") && !targetImpliesTrees)
+                {
+                    desDef = DesignationDefOf.HarvestPlant;
+                    isHarvestNonTreeMode = true;
+                    basePredicate = t =>
+                        t is Plant plant
+                        && plant.def?.plant != null
+                        && !plant.def.plant.IsTree
+                        && plant.def.plant.Harvestable
+                        && plant.HarvestableNow
+                        && map.designationManager.DesignationOn(plant, desDef) == null;
+                }
+                else if (mode.Contains("chop") || mode.Contains("wood") || mode.Contains("tree") || targetImpliesTrees)
+                {
+                    desDef = DesignationDefOf.HarvestPlant;
+                    basePredicate = t =>
+                        t is Plant plant
+                        && plant.def?.plant != null
+                        && plant.def.plant.IsTree
+                        && plant.HarvestableNow
+                        && map.designationManager.DesignationOn(plant, desDef) == null;
+                }
+                else if (mode.Contains("cut") || mode.Contains("clear"))
+                {
+                    desDef = DesignationDefOf.CutPlant;
+                    basePredicate = t =>
+                        t is Plant plant
+                        && !(map.zoneManager?.ZoneAt(plant.Position) is Zone_Growing)
+                        && !(plant.Position.GetEdifice(map) is Building_PlantGrower)
+                        && map.designationManager.DesignationOn(plant, desDef) == null;
+                }
+                else if (mode.Contains("mine") || mode.Contains("ore") || mode.Contains("mineral"))
+                {
+                    desDef = DesignationDefOf.Mine;
+                    isMineMode = true;
+                    basePredicate = t =>
+                        (t.def?.mineable == true || t is Mineable)
+                        && (desDef.targetType == TargetType.Cell
+                            ? map.designationManager.DesignationAt(t.Position, desDef)
+                            : map.designationManager.DesignationOn(t, desDef)) == null;
+                }
+                else if (mode.Contains("hunt") || mode.Contains("meat") || mode.Contains("animal"))
+                {
+                    desDef = DesignationDefOf.Hunt;
+                    basePredicate = t =>
+                        t is Pawn animal
+                        && !animal.Dead
+                        && !animal.Downed
+                        && animal.RaceProps != null
+                        && animal.RaceProps.Animal
+                        && !animal.RaceProps.Humanlike
+                        && animal.Faction == null
+                        && !animal.RaceProps.predator
+                        && !animal.InAggroMentalState
+                        && animal.RaceProps.manhunterOnDamageChance <= 0.1f
+                        && animal.RaceProps.baseBodySize <= 1.5f
+                        && map.designationManager.DesignationOn(animal, desDef) == null;
+                }
+                else
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id, $"Unknown designation type '{designationTypeStr}'. Supported: 'Harvest', 'ChopWood', 'Mine', 'Hunt'.") with { TraceId = effectiveArgs.TraceId }));
+                }
+
+                // 4. Single-pass bucketed scan over map.listerThings.AllThings
+                var inRadiusFiltered = new List<Thing>();
+                var mapWideFiltered = new List<Thing>();
+                var mapWideUnfiltered = new List<Thing>();
+                var winterTreeFallback = new List<Thing>();
+
+                bool hasFilter = !string.IsNullOrWhiteSpace(targetNameFilter);
+                int expandedRadius = Math.Max(radius, 120);
+                var allSpawnedThings = map.listerThings?.AllThings;
+
+                if (allSpawnedThings != null)
+                {
+                    for (int i = 0; i < allSpawnedThings.Count; i++)
                     {
-                        bool inPrimary = thing.Position.InHorDistOf(centerCell, radius);
-                        bool unfilteredMineAllowed = !isMineMode || thing.def?.building?.isResourceRock == true;
+                        var thing = allSpawnedThings[i];
+                        if (thing == null || !thing.Spawned || thing.Destroyed) continue;
+                        if (thing.Position.Fogged(map)) continue;
 
-                        if (!hasFilter)
+                        bool inExpanded = thing.Position.InHorDistOf(centerCell, expandedRadius);
+                        if (inExpanded && basePredicate(thing))
                         {
-                            if (unfilteredMineAllowed)
+                            bool inPrimary = thing.Position.InHorDistOf(centerCell, radius);
+                            bool unfilteredMineAllowed = !isMineMode || thing.def?.building?.isResourceRock == true;
+
+                            if (!hasFilter)
                             {
-                                if (inPrimary) inRadiusFiltered.Add(thing);
-                                else mapWideFiltered.Add(thing);
+                                if (unfilteredMineAllowed)
+                                {
+                                    if (inPrimary) inRadiusFiltered.Add(thing);
+                                    else mapWideFiltered.Add(thing);
+                                }
+                            }
+                            else
+                            {
+                                if (MatchesTargetFilter(thing, targetNameFilter))
+                                {
+                                    if (inPrimary) inRadiusFiltered.Add(thing);
+                                    else mapWideFiltered.Add(thing);
+                                }
+                                else if (unfilteredMineAllowed)
+                                {
+                                    mapWideUnfiltered.Add(thing);
+                                }
                             }
                         }
-                        else
+                        else if (isHarvestNonTreeMode
+                                 && thing is Plant tree
+                                 && tree.def?.plant != null
+                                 && tree.def.plant.IsTree
+                                 && tree.HarvestableNow
+                                 && map.designationManager.DesignationOn(tree, DesignationDefOf.HarvestPlant) == null)
                         {
-                            if (MatchesTargetFilter(thing, targetNameFilter))
-                            {
-                                if (inPrimary) inRadiusFiltered.Add(thing);
-                                else mapWideFiltered.Add(thing);
-                            }
-                            else if (unfilteredMineAllowed)
-                            {
-                                mapWideUnfiltered.Add(thing);
-                            }
+                            winterTreeFallback.Add(tree);
                         }
-                    }
-                    else if (isHarvestNonTreeMode
-                             && thing is Plant tree
-                             && tree.def?.plant != null
-                             && tree.def.plant.IsTree
-                             && tree.HarvestableNow
-                             && map.designationManager.DesignationOn(tree, DesignationDefOf.HarvestPlant) == null)
-                    {
-                        winterTreeFallback.Add(tree);
                     }
                 }
-            }
 
-            List<Thing> candidates = inRadiusFiltered.Count > 0 ? inRadiusFiltered
-                : mapWideFiltered.Count > 0 ? mapWideFiltered
-                : (hasFilter && mapWideUnfiltered.Count > 0) ? mapWideUnfiltered
-                : (isHarvestNonTreeMode && winterTreeFallback.Count > 0) ? winterTreeFallback
-                : inRadiusFiltered;
+                List<Thing> candidates = inRadiusFiltered.Count > 0 ? inRadiusFiltered
+                    : mapWideFiltered.Count > 0 ? mapWideFiltered
+                    : (hasFilter && mapWideUnfiltered.Count > 0) ? mapWideUnfiltered
+                    : (isHarvestNonTreeMode && winterTreeFallback.Count > 0) ? winterTreeFallback
+                    : inRadiusFiltered;
 
-            // Note: this tool intentionally never unforbids items. Forbid state is a player decision.
-            if (candidates.Count == 0)
-            {
-                int existingDesignations = map.designationManager?.AllDesignations?.Count(d => d.def == desDef) ?? 0;
-                if (existingDesignations > 0)
+                // Note: this tool intentionally never unforbids items. Forbid state is a player decision.
+                if (candidates.Count == 0)
                 {
-                    return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
-                        ToolResult.Ok(
+                    int existingDesignations = map.designationManager?.AllDesignations?.Count(d => d.def == desDef) ?? 0;
+                    if (existingDesignations > 0)
+                    {
+                        return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                            ToolResult.Ok(
+                                ActionPermissionGuard.TranslateOrFallback(
+                                    "RimMind.Actions.Designate.NoNewTargets",
+                                    "No new undesignated '{0}' targets found near ({1}, {2}) (existing active designations: {3}).",
+                                    designationTypeStr,
+                                    centerCell.x,
+                                    centerCell.z,
+                                    existingDesignations),
+                                effectiveArgs.ToolCallId,
+                                Id)));
+                    }
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(
+                            Id,
                             ActionPermissionGuard.TranslateOrFallback(
-                                "RimMind.Actions.Designate.NoNewTargets",
-                                "No new undesignated '{0}' targets found near ({1}, {2}) (existing active designations: {3}).",
+                                "RimMind.Actions.Designate.NoTargetsInRadius",
+                                "No undesignated '{0}' targets found within {1} tiles of ({2}, {3}).",
                                 designationTypeStr,
+                                radius,
                                 centerCell.x,
-                                centerCell.z,
-                                existingDesignations),
-                            args.ToolCallId,
-                            Id)));
+                                centerCell.z)) with { TraceId = effectiveArgs.TraceId }));
                 }
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(
-                        Id,
-                        ActionPermissionGuard.TranslateOrFallback(
-                            "RimMind.Actions.Designate.NoTargetsInRadius",
-                            "No undesignated '{0}' targets found within {1} tiles of ({2}, {3}).",
-                            designationTypeStr,
-                            radius,
-                            centerCell.x,
-                            centerCell.z))));
-            }
 
-            // 5. Sort by Edible Food Priority & Distance and Apply Designation
-            var selected = candidates
-                .OrderByDescending(t =>
+                // 5. Sort by Edible Food Priority & Distance and Apply Designation
+                var selected = candidates
+                    .OrderByDescending(t =>
+                    {
+                        if (!isHarvestNonTreeMode || t is not Plant p) return 0;
+                        var hDef = p.def?.plant?.harvestedThingDef;
+                        return (hDef != null && hDef.IsNutritionGivingIngestible && hDef.ingestible?.HumanEdible == true) ? 1 : 0;
+                    })
+                    .ThenBy(t => t.Position.DistanceToSquared(centerCell))
+                    .Take(maxCount)
+                    .ToList();
+
+                int addedCount = 0;
+                foreach (var target in selected)
                 {
-                    if (!isHarvestNonTreeMode || t is not Plant p) return 0;
-                    var hDef = p.def?.plant?.harvestedThingDef;
-                    return (hDef != null && hDef.IsNutritionGivingIngestible && hDef.ingestible?.HumanEdible == true) ? 1 : 0;
-                })
-                .ThenBy(t => t.Position.DistanceToSquared(centerCell))
-                .Take(maxCount)
-                .ToList();
+                    map.designationManager.AddDesignation(desDef.targetType == TargetType.Cell
+                        ? new Designation(target.Position, desDef)
+                        : new Designation(target, desDef));
+                    addedCount++;
+                }
 
-            int addedCount = 0;
-            foreach (var target in selected)
-            {
-                map.designationManager.AddDesignation(desDef.targetType == TargetType.Cell
-                    ? new Designation(target.Position, desDef)
-                    : new Designation(target, desDef));
-                addedCount++;
-            }
+                // Respect player work tab: NEVER call workSettings.SetPriority.
+                // If the acting colonist is already assigned to PlantCutting and can reach the plant, immediately dispatch.
+                if (isHarvestNonTreeMode
+                    && pawn != null
+                    && !pawn.Dead
+                    && !pawn.Downed
+                    && !pawn.Drafted
+                    && !pawn.InMentalState
+                    && !pawn.WorkTypeIsDisabled(WorkTypeDefOf.PlantCutting)
+                    && (pawn.workSettings == null || pawn.workSettings.WorkIsActive(WorkTypeDefOf.PlantCutting))
+                    && selected.Count > 0
+                    && selected[0] is Plant firstPlant
+                    && firstPlant.HarvestableNow
+                    && pawn.CanReserveAndReach(firstPlant, PathEndMode.Touch, Danger.Some))
+                {
+                    var plantsCutGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("PlantsCut");
+                    var harvestJob = JobMaker.MakeJob(JobDefOf.HarvestDesignated, new LocalTargetInfo(firstPlant));
+                    if (harvestJob != null)
+                    {
+                        harvestJob.workGiverDef = plantsCutGiver;
+                        pawn.jobs?.StartJob(harvestJob, JobCondition.InterruptForced);
+                    }
+                }
 
-            // Respect player work tab: NEVER call workSettings.SetPriority.
-            // If the acting colonist is already assigned to PlantCutting, immediately dispatch the first edible harvest job.
-            if (isHarvestNonTreeMode
-                && pawn != null
-                && !pawn.Dead
-                && !pawn.Downed
-                && !pawn.Drafted
-                && !pawn.WorkTypeIsDisabled(WorkTypeDefOf.PlantCutting)
-                && (pawn.workSettings == null || pawn.workSettings.WorkIsActive(WorkTypeDefOf.PlantCutting))
-                && selected.Count > 0
-                && selected[0] is Plant firstPlant
-                && firstPlant.HarvestableNow)
-            {
-                var plantsCutGiver = DefDatabase<WorkGiverDef>.GetNamedSilentFail("PlantsCut");
-                var harvestJob = JobMaker.MakeJob(JobDefOf.HarvestDesignated, new LocalTargetInfo(firstPlant));
-                harvestJob.workGiverDef = plantsCutGiver;
-                pawn.jobs?.StartJob(harvestJob, Verse.AI.JobCondition.InterruptForced);
-            }
+                string targetSample = string.Join(", ", selected.Take(3).Select(t => t.LabelShort));
+                if (selected.Count > 3) targetSample += $" (+{addedCount - 3} more)";
 
-            string targetSample = string.Join(", ", selected.Take(3).Select(t => t.LabelShort));
-            if (selected.Count > 3) targetSample += $" (+{addedCount - 3} more)";
-
-            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
-                ToolResult.Ok(
-                    ActionPermissionGuard.TranslateOrFallback(
-                        "RimMind.Actions.Designate.DesignateSuccess",
-                        "Successfully designated {0} '{1}' target(s) ({2}). Colonists will execute via work priorities.",
-                        addedCount,
-                        desDef.label,
-                        targetSample),
-                    args.ToolCallId,
-                    Id)));
+                return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                    ToolResult.Ok(
+                        ActionPermissionGuard.TranslateOrFallback(
+                            "RimMind.Actions.Designate.DesignateSuccess",
+                            "Successfully designated {0} '{1}' target(s) ({2}). Colonists will execute via work priorities.",
+                            addedCount,
+                            desDef.label,
+                            targetSample),
+                        effectiveArgs.ToolCallId,
+                        Id)));
 #endif
+            }, ct);
         }
 
 #if !RIMMIND_ACTIONS_TESTS
@@ -371,35 +377,22 @@ namespace RimMind.Actions.Actions
             return matchesDef || matchesLabel;
         }
 
-        private static bool IsGenericResourceFilter(string? filter)
+        private static bool IsGenericResourceFilter(string? filter, ThingDef? resolvedDef)
         {
             if (string.IsNullOrWhiteSpace(filter)) return true;
+            if (resolvedDef != null) return false;
             var f = filter!.Trim();
-            if (DefDatabase<ThingDef>.GetNamedSilentFail(f) != null) return false;
-            return f.Equals("Nearby", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("All", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Any", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Trees", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Tree", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Wood", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("WoodLog", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("MatureTrees", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Plants", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Plant", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Crops", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Crop", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Wild", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("WildPlants", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("WildBerries", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Berries", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Food", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Edible", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Ore", StringComparison.OrdinalIgnoreCase)
-                || f.Equals("Minerals", StringComparison.OrdinalIgnoreCase)
-                || f.Contains(" ")
-                || f.Contains("_")
-                || f.Any(c => c > 127);
+            return f.Contains(" ")
+                || f.Any(c => c > 127)
+                || GenericFilterTerms.Contains(f);
         }
+
+        private static readonly HashSet<string> GenericFilterTerms = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "Nearby", "All", "Any", "Trees", "Tree", "Wood", "WoodLog", "MatureTrees",
+            "Plants", "Plant", "Crops", "Crop", "Wild", "WildPlants", "WildBerries",
+            "Berries", "Food", "Edible", "Ore", "Minerals"
+        };
 #endif
     }
 }

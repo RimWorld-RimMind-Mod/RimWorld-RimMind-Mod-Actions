@@ -69,9 +69,9 @@ namespace RimMind.Actions.Actions
             var undraftArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "undraft"));
             var restArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "force_rest"));
 
-            var undraft = await ExecuteAtomicAsync("pawn.draft.toggle", undraftArgs, args, ct).ConfigureAwait(false);
+            var undraft = await ExecuteAtomicAsync("pawn.draft.toggle", undraftArgs, args, ct);
             ct.ThrowIfCancellationRequested();
-            var rest = await ExecuteAtomicAsync("pawn.job.set", restArgs, args, ct).ConfigureAwait(false);
+            var rest = await ExecuteAtomicAsync("pawn.job.set", restArgs, args, ct);
 
             // "Undraft pawn if possible" — undraft is best-effort: its failure does NOT fail
             // the composite. rest is the authoritative step; IsError follows rest.

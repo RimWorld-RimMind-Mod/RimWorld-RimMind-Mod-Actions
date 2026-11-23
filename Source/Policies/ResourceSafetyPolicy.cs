@@ -26,13 +26,33 @@ namespace RimMind.Actions.Policies
         }
 
         /// <summary>
-        /// Pure evaluation of resource reserves against material requirements.
+        /// Pure evaluation of resource reserves against a single primary stuff material.
         /// </summary>
         public static Result<Unit, RimMindError> EvaluateReserves(int availableWood, int availableSteel, string? stuffDefName)
         {
-            if (string.Equals(stuffDefName, "WoodLog", StringComparison.OrdinalIgnoreCase))
+            bool usesWood = string.Equals(stuffDefName, "WoodLog", StringComparison.OrdinalIgnoreCase);
+            bool usesSteel = string.Equals(stuffDefName, "Steel", StringComparison.OrdinalIgnoreCase);
+            return EvaluateMaterialRequirements(
+                availableWood,
+                availableSteel,
+                requiredWood: usesWood ? 1 : 0,
+                requiredSteel: usesSteel ? 1 : 0);
+        }
+
+        /// <summary>
+        /// Pure evaluation of resource reserves against total required WoodLog and Steel units
+        /// (covering both stuff costs and fixed <c>ThingDef.costList</c> materials, including multi-blueprint projects).
+        /// </summary>
+        public static Result<Unit, RimMindError> EvaluateMaterialRequirements(
+            int availableWood,
+            int availableSteel,
+            int requiredWood,
+            int requiredSteel)
+        {
+            if (requiredWood > 0)
             {
-                if (availableWood < MinWoodReserve)
+                int minNeededWood = Math.Max(MinWoodReserve, requiredWood);
+                if (availableWood < minNeededWood)
                 {
                     return Result<Unit, RimMindError>.Err(
                         RimMindErrors.InvalidAction("resource_safety",
@@ -40,13 +60,14 @@ namespace RimMind.Actions.Policies
                                 "RimMind.Actions.Safety.WoodReserve",
                                 "[Safety Guard] Colony wood reserve is only {0}, below minimum survival threshold (reserve: {1}); construction material consumption blocked!",
                                 availableWood,
-                                MinWoodReserve)));
+                                minNeededWood)));
                 }
             }
 
-            if (string.Equals(stuffDefName, "Steel", StringComparison.OrdinalIgnoreCase))
+            if (requiredSteel > 0)
             {
-                if (availableSteel < MinSteelReserve)
+                int minNeededSteel = Math.Max(MinSteelReserve, requiredSteel);
+                if (availableSteel < minNeededSteel)
                 {
                     return Result<Unit, RimMindError>.Err(
                         RimMindErrors.InvalidAction("resource_safety",
@@ -54,7 +75,7 @@ namespace RimMind.Actions.Policies
                                 "RimMind.Actions.Safety.SteelReserve",
                                 "[Safety Guard] Colony steel reserve is only {0}, below minimum survival threshold (reserve: {1}); construction material consumption blocked!",
                                 availableSteel,
-                                MinSteelReserve)));
+                                minNeededSteel)));
                 }
             }
 

@@ -23,19 +23,19 @@
 **RimMind-Actions** 负责将大语言模型产生的高级战术与建设意图转化为稳健的多步骤游戏机制动作（**Composite Mechanisms**）。无论是面临战地重伤失血、突发险情，还是执行房间建造与农耕生产，殖民者都能自主发起并持续轮询复合动作直至完工。
 
 ### 核心特性
-- **10 大内置复合工具**：
-  - **生存与战地急救**：`actions.stabilize_rest`、`actions.emergency_flee`、`actions.eat_and_recreation`、`actions.triage_patient`
-  - **建筑与工程规划**：`actions.place_blueprint`、`actions.plan_room_project`、`actions.clear_area_for_build`
-  - **生产与农耕调度**：`actions.designated_harvest`、`actions.set_work_bill`、`actions.schedule_farming_cycle`
-- **`ContinuousJobPoller` 多阶段持续轮询**：全程跟踪多步作业生命周期（包括 `Blueprint_Build` 蓝图转化为 `Frame` 建造框架后的持续运料与施工），直至实体建筑落成或任务取消。
-- **`ActionPermissionGuard` 与 `ResourceSafetyGuard` 双重守卫**：严格校验殖民者存活在图且未倒地（`!Downed`）、工作类型能力、危险逼近距离与殖民地物资保底红线。
+- **11 大内置组合工具**：
+  - **生存与战地急救**：`actions.stabilize_rest`、`actions.emergency_flee`、`actions.eat_and_recreation`、`actions.triage_patient`、`actions_manage_equipment`
+  - **建筑施工与空间查询**：`actions_place_blueprint`、`actions_plan_room_project`、`actions_query_buildable_structures`
+  - **生产、区域与资源标记**：`actions_designate_resources`、`actions_add_worktable_bill`、`actions_manage_zone`
+- **`ConstructionIntentChainer` 与空间选址求解器**：通过 `ColonySpatialClusterSolver` 综合评估房间拓扑、同类聚簇与交互格，再借由 `RimMindAPI.Agent.StartIntentSession` 挂接 `Blueprint_Build` -> `Frame` 连续运料与施工租约。
+- **`ActionPermissionGuard` 与 `ResourceSafetyGuard` 双重守卫**：严格校验活跃在图殖民者状态、三态自治权限、固定/材质建材储备底线及并发蓝图上限。
 
 ---
 
 ## 🎮 实机特性展示
 
 ![RimMind-Actions 实机展示](docs/images/showcase.jpg)
-*复合机制注册表与自主施工实机场景：在 F8 控制台检视全部 10 项已注册机制（`pawn.draft`、`pawn.job`、`pawn.thought` 等），同时殖民者在木制营房旁自主执行 `place_blueprint(Bed, WoodLog)` 蓝图建造任务。*
+*组合机制注册表与自主施工实机场景：在 F8 控制台检视已注册机制，同时殖民者在营房旁自主规划并执行蓝图建造任务。*
 
 ---
 
@@ -47,8 +47,8 @@
 flowchart LR
     Advisor["RimMind-Advisor / AI 规划器"] -->|发起高级意图| Actions["RimMind-Actions"]
     Actions -->|ActionPermissionGuard & ResourceSafetyGuard| Gate{"权限与资源安全?"}
-    Gate -- 通过 --> Poller["ContinuousJobPoller 持续轮询与施工"]
-    Gate -- 驳回 --> Fallback["安全取消并记录原因"]
+    Gate -- 通过 --> Chainer["ConstructionIntentChainer 与游戏内执行"]
+    Gate -- 驳回 --> Fallback["返回结构化 RimMindError"]
     Actions -->|通过公共 API 注册| Core["RimMind-Core 工具注册表"]
 ```
 
