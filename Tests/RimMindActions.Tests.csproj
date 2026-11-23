@@ -5,7 +5,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>RimMind.Actions.Tests</RootNamespace>
     <AssemblyName>RimMindActions.Tests</AssemblyName>
-    <LangVersion>12.0</LangVersion>
+    <LangVersion>9.0</LangVersion>
     <Nullable>enable</Nullable>
     <DefineConstants>$(DefineConstants);RIMMIND_ACTIONS_TESTS</DefineConstants>
   </PropertyGroup>
@@ -37,6 +37,7 @@
     <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/AutonomyDomainRiskMapper.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/ToolScopeProjection.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/PawnIdParser.cs" />
+    <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/CompositeToolExecutionTemplate.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Features/Tools/ToolRegistry.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Common/Unit.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Agent/Policies/AutonomyDomain.cs" />

@@ -23,19 +23,19 @@
 **RimMind-Actions** translates high-level AI tactical and colony-building intents into robust, multi-step game actions called **Composite Mechanisms**. When facing sudden crises or executing long-running colony projects, colonists autonomously execute and poll composite workflows to completion.
 
 ### Key Highlights
-- **10 Built-in Composite Tools**:
-  - **Emergency & Survival**: `actions.stabilize_rest`, `actions.emergency_flee`, `actions.eat_and_recreation`, `actions.triage_patient`
-  - **Construction & Engineering**: `actions.place_blueprint`, `actions.plan_room_project`, `actions.clear_area_for_build`
-  - **Production & Agriculture**: `actions.designated_harvest`, `actions.set_work_bill`, `actions.schedule_farming_cycle`
-- **`ContinuousJobPoller` Multi-Stage Lifecycle**: Continuously drives multi-step jobs (including seamless `Blueprint_Build` -> `Frame` resource delivery and construction transitions) until every target structure is finished or canceled.
-- **`ActionPermissionGuard` & `ResourceSafetyGuard`**: Enforces active spawned non-downed colonist eligibility, work-type capability checks, danger proximity interception, and colony material reserve thresholds before issuing Verse jobs.
+- **11 Built-in Composite Tools**:
+  - **Emergency & Survival**: `actions.stabilize_rest`, `actions.emergency_flee`, `actions.eat_and_recreation`, `actions.triage_patient`, `actions_manage_equipment`
+  - **Construction & Spatial Query**: `actions_place_blueprint`, `actions_plan_room_project`, `actions_query_buildable_structures`
+  - **Production, Zones & Resources**: `actions_designate_resources`, `actions_add_worktable_bill`, `actions_manage_zone`
+- **`ConstructionIntentChainer` & Spatial Solver**: Evaluates room topology, peer clustering, and interaction cells via `ColonySpatialClusterSolver`, then attaches continuous `Blueprint_Build` -> `Frame` construction leases through `RimMindAPI.Agent.StartIntentSession`.
+- **`ActionPermissionGuard` & `ResourceSafetyGuard`**: Enforces active spawned colonist eligibility, tri-state autonomy permissions, stuffed and fixed material reserve checks, and concurrent blueprint caps before mutating map state.
 
 ---
 
 ## 🎮 In-Game Showcase
 
 ![RimMind-Actions Showcase](docs/images/showcase.jpg)
-*In-game Mechanisms Registry & Autonomous Execution: Inspecting all 10 registered mechanisms (`pawn.draft`, `pawn.job`, `pawn.thought`, `pawn.interaction`, `pawn.recruit`, `world.storyteller`, etc.) while colonists execute `place_blueprint(Bed, WoodLog)` beside the colony lodge.*
+*In-game Mechanisms Registry & Autonomous Execution: Inspecting registered mechanisms while colonists autonomously place and build blueprints beside the colony lodge.*
 
 ---
 
@@ -47,8 +47,8 @@
 flowchart LR
     Advisor["RimMind-Advisor / AI Planner"] -->|Issues Intent| Actions["RimMind-Actions"]
     Actions -->|ActionPermissionGuard & ResourceSafetyGuard| Gate{"Safe & Valid?"}
-    Gate -- Yes --> Poller["ContinuousJobPoller & Verse JobDriver"]
-    Gate -- No --> Fallback["Cancel with Trace Reason"]
+    Gate -- Yes --> Chainer["ConstructionIntentChainer & Verse Execution"]
+    Gate -- No --> Fallback["Return Structured RimMindError"]
     Actions -->|Registered via Public API| Core["RimMind-Core ToolRegistry"]
 ```
 

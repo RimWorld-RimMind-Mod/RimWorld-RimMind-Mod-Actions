@@ -57,180 +57,193 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
-            if (!TryGetArgument<string>(argsRoot, "zone_type", out var zoneTypeStr)
-                || string.IsNullOrWhiteSpace(zoneTypeStr))
+            return ExecuteDirectToolAsync(args, (argsRoot, effectiveArgs, _) =>
             {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, "Missing required parameter 'zone_type' (Growing or Stockpile).")));
-            }
-
-#if RIMMIND_ACTIONS_TESTS
-            var domain = ResolveAutonomyDomain(argsRoot, args)
-                ?? AutonomyDomain.ResourceMarking;
-            if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
-            {
-                var guard = GuardColonistTarget(testPawnId, domain, args);
-                if (guard.IsErr)
-                {
-                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
-                }
-            }
-            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
-                ToolResult.Ok($"Zone {zoneTypeStr}", args.ToolCallId, Id)));
-#else
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
-            if (actorResolution.Error != null)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
-            }
-
-            var map = actorResolution.Map;
-            if (map == null)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.Internal("No active map available for zone management.")));
-            }
-
-            // 1. Resolve Anchor Colonist & Autonomy Permission Guard
-            Pawn? pawn = actorResolution.Pawn;
-
-            var domain = ResolveAutonomyDomain(argsRoot, args)
-                ?? AutonomyDomain.ResourceMarking;
-            var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, args);
-            if (!permCheck.IsOk)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
-            }
-
-            // 2. Parse Dimensions
-            TryGetArgument<int>(argsRoot, "width", out var width);
-            if (width <= 0) width = 5;
-            width = Math.Max(2, Math.Min(15, width));
-
-            TryGetArgument<int>(argsRoot, "height", out var height);
-            if (height <= 0) height = 5;
-            height = Math.Max(2, Math.Min(15, height));
-
-            IntVec3 origin = (pawn != null && pawn.Position.InHorDistOf(map.Center, 28f)) ? pawn.Position : map.Center;
-            string zoneTypeLower = zoneTypeStr.Trim().ToLowerInvariant();
-            bool isGrowing = zoneTypeLower.Contains("grow") || zoneTypeLower.Contains("farm") || zoneTypeLower.Contains("plant");
-
-            // 3. Search for Best Rectangular Region (fallback from pawn position to map.Center)
-            CellRect bestRect = default;
-            int bestValidCells = SearchBestZoneRect(map, origin, width, height, isGrowing, out bestRect);
-            if (bestValidCells < 4 && origin != map.Center)
-            {
-                bestValidCells = SearchBestZoneRect(map, map.Center, width, height, isGrowing, out bestRect);
-            }
-
-            if (bestValidCells < 4)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id,
-                        ActionPermissionGuard.TranslateOrFallback(
-                            "RimMind.Actions.Zone.NoOpenArea",
-                            "[Planning Failed] No contiguous open flat area found nearby (requires >= 4 valid cells)."))));
-            }
-
-            // 4. Create and Register Zone
-            Zone newZone;
-            string details;
-
-            if (isGrowing)
-            {
-                TryGetArgument<string>(argsRoot, "crop_def", out var cropDefName);
-                if (string.IsNullOrWhiteSpace(cropDefName)) cropDefName = "Plant_Rice";
-
-                var trimmedCrop = cropDefName.Trim();
-                var plantDef = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedCrop);
-                if (plantDef == null || plantDef.plant == null)
-                {
-                    plantDef = DefDatabase<ThingDef>.AllDefsListForReading
-                        .FirstOrDefault(d => d?.plant != null
-                                          && (string.Equals(d.defName, trimmedCrop, StringComparison.OrdinalIgnoreCase)
-                                           || string.Equals(d.defName, "Plant_" + trimmedCrop, StringComparison.OrdinalIgnoreCase)
-                                           || string.Equals(d.label, trimmedCrop, StringComparison.OrdinalIgnoreCase)))
-                        ?? DefDatabase<ThingDef>.GetNamedSilentFail("Plant_Rice")
-                        ?? DefDatabase<ThingDef>.AllDefsListForReading.FirstOrDefault(d => d?.plant != null);
-                }
-
-                if (plantDef == null)
+                if (!TryGetArgument<string>(argsRoot, "zone_type", out var zoneTypeStr)
+                    || string.IsNullOrWhiteSpace(zoneTypeStr))
                 {
                     return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                        RimMindErrors.InvalidDefName("No valid growable plant def available.")));
+                        RimMindErrors.InvalidAction(Id, "Missing required parameter 'zone_type' (Growing or Stockpile).") with { TraceId = effectiveArgs.TraceId }));
                 }
 
-                var growZone = new Zone_Growing(map.zoneManager);
-                map.zoneManager.RegisterZone(growZone);
-
-                foreach (var cell in bestRect)
+                string zoneTypeLower = zoneTypeStr.Trim().ToLowerInvariant();
+                bool isGrowing = zoneTypeLower.Contains("grow") || zoneTypeLower.Contains("farm") || zoneTypeLower.Contains("plant");
+                bool isStockpile = zoneTypeLower.Contains("stockpile") || zoneTypeLower.Contains("storage") || zoneTypeLower.Contains("dump");
+                if (!isGrowing && !isStockpile)
                 {
-                    if (cell.InBounds(map) && !cell.Fogged(map) && map.zoneManager.ZoneAt(cell) == null)
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id, $"Unknown zone_type '{zoneTypeStr}'. Expected 'Growing' or 'Stockpile'.") with { TraceId = effectiveArgs.TraceId }));
+                }
+
+#if RIMMIND_ACTIONS_TESTS
+                var domain = ResolveAutonomyDomain(argsRoot, effectiveArgs)
+                    ?? AutonomyDomain.ResourceMarking;
+                if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
+                {
+                    var guard = GuardColonistTarget(testPawnId, domain, effectiveArgs);
+                    if (guard.IsErr)
                     {
-                        if (cell.GetFertility(map) >= 0.6f)
+                        return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                    }
+                }
+                return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                    ToolResult.Ok($"Zone {zoneTypeStr}", effectiveArgs.ToolCallId, Id)));
+#else
+                var actorResolution = ActionPermissionGuard.ResolveActorAndMap(effectiveArgs, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
+                if (actorResolution.Error != null)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id, actorResolution.Error) with { TraceId = effectiveArgs.TraceId }));
+                }
+
+                var map = actorResolution.Map;
+                if (map == null)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.Internal("No active map available for zone management.") with { TraceId = effectiveArgs.TraceId }));
+                }
+
+                // 1. Resolve Anchor Colonist & Autonomy Permission Guard
+                Pawn? pawn = actorResolution.Pawn;
+
+                var domain = ResolveAutonomyDomain(argsRoot, effectiveArgs)
+                    ?? AutonomyDomain.ResourceMarking;
+                var permCheck = ActionPermissionGuard.CheckPermission(pawn, Id, domain, effectiveArgs);
+                if (!permCheck.IsOk)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
+                }
+
+                // 2. Parse Dimensions
+                TryGetArgument<int>(argsRoot, "width", out var width);
+                if (width <= 0) width = 5;
+                width = Math.Max(2, Math.Min(15, width));
+
+                TryGetArgument<int>(argsRoot, "height", out var height);
+                if (height <= 0) height = 5;
+                height = Math.Max(2, Math.Min(15, height));
+
+                IntVec3 origin = (pawn != null && pawn.Position.InHorDistOf(map.Center, 28f)) ? pawn.Position : map.Center;
+
+                // 3. Search for Best Rectangular Region (fallback from pawn position to map.Center)
+                CellRect bestRect = default;
+                int bestValidCells = SearchBestZoneRect(map, origin, width, height, isGrowing, out bestRect);
+                if (bestValidCells < 4 && origin != map.Center)
+                {
+                    bestValidCells = SearchBestZoneRect(map, map.Center, width, height, isGrowing, out bestRect);
+                }
+
+                if (bestValidCells < 4)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id,
+                            ActionPermissionGuard.TranslateOrFallback(
+                                "RimMind.Actions.Zone.NoOpenArea",
+                                "[Planning Failed] No contiguous open flat area found nearby (requires >= 4 valid cells).")) with { TraceId = effectiveArgs.TraceId }));
+                }
+
+                // 4. Create and Register Zone
+                Zone newZone;
+                string details;
+
+                if (isGrowing)
+                {
+                    TryGetArgument<string>(argsRoot, "crop_def", out var cropDefName);
+                    if (string.IsNullOrWhiteSpace(cropDefName)) cropDefName = "Plant_Rice";
+
+                    var trimmedCrop = cropDefName.Trim();
+                    var plantDef = DefDatabase<ThingDef>.GetNamedSilentFail(trimmedCrop);
+                    if (plantDef == null || plantDef.plant == null || !plantDef.plant.Sowable)
+                    {
+                        var riceFallback = DefDatabase<ThingDef>.GetNamedSilentFail("Plant_Rice");
+                        if (riceFallback?.plant == null || !riceFallback.plant.Sowable)
+                            riceFallback = null;
+
+                        plantDef = DefDatabase<ThingDef>.AllDefsListForReading
+                            .FirstOrDefault(d => d?.plant != null && d.plant.Sowable
+                                              && (string.Equals(d.defName, trimmedCrop, StringComparison.OrdinalIgnoreCase)
+                                               || string.Equals(d.defName, "Plant_" + trimmedCrop, StringComparison.OrdinalIgnoreCase)
+                                               || string.Equals(d.label, trimmedCrop, StringComparison.OrdinalIgnoreCase)))
+                            ?? riceFallback
+                            ?? DefDatabase<ThingDef>.AllDefsListForReading.FirstOrDefault(d => d?.plant != null && d.plant.Sowable);
+                    }
+
+                    if (plantDef == null)
+                    {
+                        return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                            RimMindErrors.InvalidDefName("No valid sowable plant def available.") with { TraceId = effectiveArgs.TraceId }));
+                    }
+
+                    var growZone = new Zone_Growing(map.zoneManager);
+                    map.zoneManager.RegisterZone(growZone);
+
+                    foreach (var cell in bestRect)
+                    {
+                        if (cell.InBounds(map) && !cell.Fogged(map) && map.zoneManager.ZoneAt(cell) == null)
+                        {
+                            if (cell.GetFertility(map) >= 0.6f)
+                            {
+                                var things = map.thingGrid.ThingsListAt(cell);
+                                if (things == null || !things.Any(t => !t.def.CanOverlapZones))
+                                {
+                                    growZone.AddCell(cell);
+                                }
+                            }
+                        }
+                    }
+
+                    growZone.SetPlantDefToGrow(plantDef);
+                    newZone = growZone;
+                    details = ActionPermissionGuard.TranslateOrFallback(
+                        "RimMind.Actions.Zone.GrowZoneDetail",
+                        "Growing Zone (crop: {0}, cells: {1})",
+                        plantDef.label, growZone.cells.Count);
+                    // Respect player work tab: colonists sow according to their existing Growing work priorities.
+                }
+                else
+                {
+                    var stockpileZone = new Zone_Stockpile(StorageSettingsPreset.DefaultStockpile, map.zoneManager);
+                    map.zoneManager.RegisterZone(stockpileZone);
+
+                    foreach (var cell in bestRect)
+                    {
+                        if (cell.InBounds(map) && !cell.Fogged(map) && map.zoneManager.ZoneAt(cell) == null)
                         {
                             var things = map.thingGrid.ThingsListAt(cell);
                             if (things == null || !things.Any(t => !t.def.CanOverlapZones))
                             {
-                                growZone.AddCell(cell);
+                                stockpileZone.AddCell(cell);
                             }
                         }
                     }
+
+                    newZone = stockpileZone;
+                    details = ActionPermissionGuard.TranslateOrFallback(
+                        "RimMind.Actions.Zone.StockpileZoneDetail",
+                        "Stockpile Zone (cells: {0})",
+                        stockpileZone.cells.Count);
                 }
 
-                growZone.SetPlantDefToGrow(plantDef);
-                newZone = growZone;
-                details = ActionPermissionGuard.TranslateOrFallback(
-                    "RimMind.Actions.Zone.GrowZoneDetail",
-                    "Growing Zone (crop: {0}, cells: {1})",
-                    plantDef.label, growZone.cells.Count);
-                // Respect player work tab: colonists sow according to their existing Growing work priorities.
-            }
-            else
-            {
-                var stockpileZone = new Zone_Stockpile(StorageSettingsPreset.DefaultStockpile, map.zoneManager);
-                map.zoneManager.RegisterZone(stockpileZone);
-
-                foreach (var cell in bestRect)
+                if (newZone.cells.Count == 0)
                 {
-                    if (cell.InBounds(map) && !cell.Fogged(map) && map.zoneManager.ZoneAt(cell) == null)
-                    {
-                        var things = map.thingGrid.ThingsListAt(cell);
-                        if (things == null || !things.Any(t => !t.def.CanOverlapZones))
-                        {
-                            stockpileZone.AddCell(cell);
-                        }
-                    }
+                    newZone.Deregister();
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id,
+                            ActionPermissionGuard.TranslateOrFallback(
+                                "RimMind.Actions.Zone.NoValidCells",
+                                "Failed to designate any valid zone cells.")) with { TraceId = effectiveArgs.TraceId }));
                 }
 
-                newZone = stockpileZone;
-                details = ActionPermissionGuard.TranslateOrFallback(
-                    "RimMind.Actions.Zone.StockpileZoneDetail",
-                    "Stockpile Zone (cells: {0})",
-                    stockpileZone.cells.Count);
-            }
-
-            if (newZone.cells.Count == 0)
-            {
-                newZone.Deregister();
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id,
+                return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                    ToolResult.Ok(
                         ActionPermissionGuard.TranslateOrFallback(
-                            "RimMind.Actions.Zone.NoValidCells",
-                            "Failed to designate any valid zone cells."))));
-            }
-
-            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
-                ToolResult.Ok(
-                    ActionPermissionGuard.TranslateOrFallback(
-                        "RimMind.Actions.Zone.DesignateSuccess",
-                        "Successfully designated {2} centered at ({0}, {1}).",
-                        bestRect.CenterCell.x, bestRect.CenterCell.z, details),
-                    args.ToolCallId,
-                    Id)));
+                            "RimMind.Actions.Zone.DesignateSuccess",
+                            "Successfully designated {2} centered at ({0}, {1}).",
+                            bestRect.CenterCell.x, bestRect.CenterCell.z, details),
+                        effectiveArgs.ToolCallId,
+                        Id)));
 #endif
+            }, ct);
         }
 
 #if !RIMMIND_ACTIONS_TESTS

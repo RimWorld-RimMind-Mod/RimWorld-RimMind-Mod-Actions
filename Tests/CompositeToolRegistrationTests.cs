@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using RimMind.Actions.Actions;
+using RimMind.Application.Common.Interfaces.Tools;
 using Xunit;
 
 namespace RimMind.Actions.Tests
@@ -17,21 +19,20 @@ namespace RimMind.Actions.Tests
         }
 
         [Fact]
-        public void Composite_Base_Implements_ICompositeToolCall()
+        public void Composite_Base_Implements_Core_Contracts()
         {
-            var source = ReadActionsSource(Path.Combine("Actions", "CompositeToolCallBase.cs"));
-            Assert.Contains("ICompositeToolCall", source);
-            Assert.Contains("ExecuteAtomicAsync", source);
+            Assert.True(typeof(ICompositeToolCall).IsAssignableFrom(typeof(CompositeToolCallBase)));
+            Assert.True(typeof(IToolPolicyClassifier).IsAssignableFrom(typeof(CompositeToolCallBase)));
+            Assert.True(typeof(RimMind.Presentation.Api.CompositeToolCallBase).IsAssignableFrom(typeof(CompositeToolCallBase)));
         }
 
         [Fact]
         public void StabilizeRest_Declares_Atomic_Tool_Dependencies()
         {
-            var source = ReadActionsSource(Path.Combine("Actions", "StabilizeRestCompositeTool.cs"));
-            Assert.Contains("actions.stabilize_rest", source);
-            Assert.Contains("pawn.draft.toggle", source);
-            Assert.Contains("pawn.job.set", source);
-            Assert.Contains("force_rest", source);
+            var tool = new StabilizeRestCompositeTool();
+            Assert.Equal("actions.stabilize_rest", tool.Id);
+            Assert.Contains("pawn.draft.toggle", tool.RequiredToolIds);
+            Assert.Contains("pawn.job.set", tool.RequiredToolIds);
         }
 
         [Fact]

@@ -59,142 +59,142 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
-            TryGetArgument<string>(argsRoot, "category", out var categoryFilter);
-            categoryFilter = string.IsNullOrWhiteSpace(categoryFilter) ? "all" : categoryFilter.ToLowerInvariant().Trim();
+            return ExecuteDirectToolAsync(args, (argsRoot, effectiveArgs, _) =>
+            {
+                TryGetArgument<string>(argsRoot, "category", out var categoryFilter);
+                categoryFilter = string.IsNullOrWhiteSpace(categoryFilter) ? "all" : categoryFilter.ToLowerInvariant().Trim();
 
 #if RIMMIND_ACTIONS_TESTS
-            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
-            {
-                ToolCallId = args.ToolCallId,
-                ToolName = Id,
-                Content = JsonConvert.SerializeObject(new { status = "ok", category = categoryFilter }),
-                IsError = false
-            }));
-#else
-            // Read-only query: prefer the acting colonist's map, fall back to the viewed map.
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, parsedArgs: argsRoot);
-            var map = actorResolution.Map ?? Find.CurrentMap;
-            if (map == null)
-            {
-                var noMapResult = new
-                {
-                    status = "unavailable",
-                    message = "No active map currently spawned."
-                };
                 return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
                 {
-                    ToolCallId = args.ToolCallId,
+                    ToolCallId = effectiveArgs.ToolCallId,
                     ToolName = Id,
-                    Content = JsonConvert.SerializeObject(noMapResult),
+                    Content = JsonConvert.SerializeObject(new { status = "ok", category = categoryFilter }),
                     IsError = false
                 }));
-            }
-
-            var anchorPawn = actorResolution.Pawn;
-            IntVec3 fallbackAnchor = anchorPawn != null && anchorPawn.Spawned && anchorPawn.Map == map ? anchorPawn.Position : map.Center;
-            ColonySpatialSnapshot spatialSnapshot = MapSpatialSnapshotBuilder.Build(map, fallbackAnchor.x, fallbackAnchor.z, radius: 22);
-            var roomSummaries = spatialSnapshot.Rooms
-                .Take(10)
-                .Select(r => new
+#else
+                // Read-only query: prefer the acting colonist's map, fall back to the viewed map.
+                var actorResolution = ActionPermissionGuard.ResolveActorAndMap(effectiveArgs, parsedArgs: argsRoot);
+                var map = actorResolution.Map ?? Find.CurrentMap;
+                if (map == null)
                 {
-                    room_id = r.RoomId,
-                    role = r.Role,
-                    center_x = r.CenterX,
-                    center_z = r.CenterZ,
-                    cells = r.CellCount,
-                    beds = r.BedCount,
-                    worktables = r.WorktableCount,
-                    tables = r.TableCount
-                })
-                .ToList();
-            string spatialAsciiMap = SpatialAsciiRenderer.RenderCompactAsciiGrid(
-                spatialSnapshot,
-                spatialSnapshot.ColonyAnchorX,
-                spatialSnapshot.ColonyAnchorZ,
-                radius: 10);
-
-            int woodCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
-            int steelCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
-            var compDef = DefDatabase<ThingDef>.GetNamedSilentFail("ComponentIndustrial")
-                ?? DefDatabase<ThingDef>.GetNamedSilentFail("ComponentsIndustrial");
-            int componentCount = compDef != null ? MapResourceCounter.GetAvailableCount(map, compDef) : 0;
-
-            float outdoorTemp = map.mapTemperature.OutdoorTemp;
-            bool hasPower = HasActivePowerGrid(map);
-
-            var bottlenecks = DetectBottlenecks(map, outdoorTemp, hasPower);
-
-            var availableByDefName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-            int LookupAvailableCount(string defName)
-            {
-                if (string.IsNullOrWhiteSpace(defName)) return 0;
-                if (availableByDefName.TryGetValue(defName, out int cached)) return cached;
-                var resolved = DefDatabase<ThingDef>.GetNamedSilentFail(defName);
-                int count = resolved != null ? MapResourceCounter.GetAvailableCount(map, resolved) : 0;
-                availableByDefName[defName] = count;
-                return count;
-            }
-
-            var dynamicDescriptors = DiscoverBuildableStructures(map, LookupAvailableCount);
-            var catalogItems = BuildableStructureCatalogPolicy.FilterAndProject(
-                dynamicDescriptors,
-                categoryFilter,
-                LookupAvailableCount,
-                BuildableStructureCatalogPolicy.DefaultMaxResults);
-
-            var filteredStructures = catalogItems
-                .Select(s => new
-                {
-                    def_name = s.DefName,
-                    label = s.Label,
-                    category = s.Category,
-                    requires_power = s.RequiresPower,
-                    cost_summary = s.CostSummary,
-                    can_afford = s.CanAfford,
-                    purpose = s.Purpose
-                })
-                .ToList();
-
-            var responsePayload = new
-            {
-                status = "ok",
-                colony_anchor = new
-                {
-                    x = spatialSnapshot.ColonyAnchorX,
-                    z = spatialSnapshot.ColonyAnchorZ,
-                    has_base = spatialSnapshot.HasBaseAnchor
-                },
-                rooms = roomSummaries,
-                spatial_ascii_map = spatialAsciiMap,
-                colony_status = new
-                {
-                    outdoor_temperature_c = Math.Round(outdoorTemp, 1),
-                    power_grid_active = hasPower,
-                    stockpile_materials = new
+                    var noMapResult = new
                     {
-                        wood = woodCount,
-                        steel = steelCount,
-                        components = componentCount
-                    },
-                    bottlenecks = bottlenecks
-                },
-                available_structures = filteredStructures
-            };
+                        status = "unavailable",
+                        message = "No active map currently spawned."
+                    };
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
+                    {
+                        ToolCallId = effectiveArgs.ToolCallId,
+                        ToolName = Id,
+                        Content = JsonConvert.SerializeObject(noMapResult),
+                        IsError = false
+                    }));
+                }
 
-            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
-            {
-                ToolCallId = args.ToolCallId,
-                ToolName = Id,
-                Content = JsonConvert.SerializeObject(responsePayload),
-                IsError = false
-            }));
+                var anchorPawn = actorResolution.Pawn;
+                IntVec3 fallbackAnchor = anchorPawn != null && anchorPawn.Spawned && anchorPawn.Map == map ? anchorPawn.Position : map.Center;
+                ColonySpatialSnapshot spatialSnapshot = MapSpatialSnapshotBuilder.Build(map, fallbackAnchor.x, fallbackAnchor.z, radius: 22);
+                var roomSummaries = spatialSnapshot.Rooms
+                    .Take(10)
+                    .Select(r => new
+                    {
+                        room_id = r.RoomId,
+                        role = r.Role,
+                        center_x = r.CenterX,
+                        center_z = r.CenterZ,
+                        cells = r.CellCount,
+                        beds = r.BedCount,
+                        worktables = r.WorktableCount,
+                        tables = r.TableCount
+                    })
+                    .ToList();
+                string spatialAsciiMap = SpatialAsciiRenderer.RenderCompactAsciiGrid(
+                    spatialSnapshot,
+                    spatialSnapshot.ColonyAnchorX,
+                    spatialSnapshot.ColonyAnchorZ,
+                    radius: 10);
+
+                int woodCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
+                int steelCount = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
+                var compDef = DefDatabase<ThingDef>.GetNamedSilentFail("ComponentIndustrial")
+                    ?? DefDatabase<ThingDef>.GetNamedSilentFail("ComponentsIndustrial");
+                int componentCount = compDef != null ? MapResourceCounter.GetAvailableCount(map, compDef) : 0;
+
+                float outdoorTemp = map.mapTemperature.OutdoorTemp;
+                bool hasPower = HasActivePowerGrid(map);
+
+                var availableByDefName = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+                int LookupAvailableCount(string defName)
+                {
+                    if (string.IsNullOrWhiteSpace(defName)) return 0;
+                    if (availableByDefName.TryGetValue(defName, out int cached)) return cached;
+                    var resolved = DefDatabase<ThingDef>.GetNamedSilentFail(defName);
+                    int count = resolved != null ? MapResourceCounter.GetAvailableCount(map, resolved) : 0;
+                    availableByDefName[defName] = count;
+                    return count;
+                }
+
+                var dynamicDescriptors = DiscoverBuildableStructures(LookupAvailableCount);
+                var bottlenecks = DetectBottlenecks(map, outdoorTemp, hasPower, dynamicDescriptors);
+                var catalogItems = BuildableStructureCatalogPolicy.FilterAndProject(
+                    dynamicDescriptors,
+                    categoryFilter,
+                    LookupAvailableCount,
+                    BuildableStructureCatalogPolicy.DefaultMaxResults);
+
+                var filteredStructures = catalogItems
+                    .Select(s => new
+                    {
+                        def_name = s.DefName,
+                        label = s.Label,
+                        category = s.Category,
+                        requires_power = s.RequiresPower,
+                        cost_summary = s.CostSummary,
+                        can_afford = s.CanAfford,
+                        purpose = s.Purpose
+                    })
+                    .ToList();
+
+                var responsePayload = new
+                {
+                    status = "ok",
+                    colony_anchor = new
+                    {
+                        x = spatialSnapshot.ColonyAnchorX,
+                        z = spatialSnapshot.ColonyAnchorZ,
+                        has_base = spatialSnapshot.HasBaseAnchor
+                    },
+                    rooms = roomSummaries,
+                    spatial_ascii_map = spatialAsciiMap,
+                    colony_status = new
+                    {
+                        outdoor_temperature_c = Math.Round(outdoorTemp, 1),
+                        power_grid_active = hasPower,
+                        stockpile_materials = new
+                        {
+                            wood = woodCount,
+                            steel = steelCount,
+                            components = componentCount
+                        },
+                        bottlenecks = bottlenecks
+                    },
+                    available_structures = filteredStructures
+                };
+
+                return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
+                {
+                    ToolCallId = effectiveArgs.ToolCallId,
+                    ToolName = Id,
+                    Content = JsonConvert.SerializeObject(responsePayload),
+                    IsError = false
+                }));
 #endif
+            }, ct);
         }
 
 #if !RIMMIND_ACTIONS_TESTS
         private static List<BuildableStructureDescriptor> DiscoverBuildableStructures(
-            Map map,
             Func<string, int> lookupAvailableCount)
         {
             var results = new List<BuildableStructureDescriptor>();
@@ -335,58 +335,144 @@ namespace RimMind.Actions.Actions
             return false;
         }
 
-        private static List<string> DetectBottlenecks(Map map, float outdoorTemp, bool hasPower)
+        private static List<string> DetectBottlenecks(
+            Map map,
+            float outdoorTemp,
+            bool hasPower,
+            IReadOnlyList<BuildableStructureDescriptor> descriptors)
         {
             var list = new List<string>();
             var colonists = RimMindPawnLookup.GetSpawnedColonistsSafe(map)
                 .Where(p => RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
                 .ToList();
 
+            var sleptOutsideDef = DefDatabase<ThoughtDef>.GetNamedSilentFail("SleptOutside");
+            var sleptOnGroundDef = DefDatabase<ThoughtDef>.GetNamedSilentFail("SleptOnGround");
+
             bool sleepingOutside = false;
             bool sleepingOnGround = false;
             foreach (var p in colonists)
             {
-                if (p.needs?.mood?.thoughts?.memories == null) continue;
-                if (p.needs.mood.thoughts.memories.GetFirstMemoryOfDef(ThoughtDef.Named("SleptOutside")) != null) sleepingOutside = true;
-                if (p.needs.mood.thoughts.memories.GetFirstMemoryOfDef(ThoughtDef.Named("SleptOnGround")) != null) sleepingOnGround = true;
+                var memories = p.needs?.mood?.thoughts?.memories;
+                if (memories == null) continue;
+                if (sleptOutsideDef != null && memories.GetFirstMemoryOfDef(sleptOutsideDef) != null) sleepingOutside = true;
+                if (sleptOnGroundDef != null && memories.GetFirstMemoryOfDef(sleptOnGroundDef) != null) sleepingOnGround = true;
             }
 
             if (sleepingOnGround || sleepingOutside)
             {
-                list.Add("⚠️ Colonists sleeping outside or on ground (-4 mood). Build Beds immediately.");
+                string bedSuggestion = SuggestStructures(
+                    descriptors,
+                    def => def.thingClass != null && typeof(Building_Bed).IsAssignableFrom(def.thingClass),
+                    preferNoPower: !hasPower,
+                    fallbackRole: "sleeping structures");
+                list.Add($"⚠️ Colonists sleeping outside or on ground (-4 mood). Build {bedSuggestion} immediately.");
             }
 
             if (outdoorTemp >= 32f)
             {
+                string coolingSuggestion = SuggestStructures(
+                    descriptors,
+                    def =>
+                    {
+                        var heatPusher = def.GetCompProperties<CompProperties_HeatPusher>();
+                        if (heatPusher != null && heatPusher.heatPerSecond < 0f) return true;
+                        var tempControl = def.GetCompProperties<CompProperties_TempControl>();
+                        return tempControl != null && tempControl.energyPerSecond < 0f;
+                    },
+                    preferNoPower: !hasPower,
+                    fallbackRole: "a cooling structure");
+
                 if (!hasPower)
                 {
-                    list.Add($"⚠️ Warm/Heatwave climate ({outdoorTemp:F1}°C) with NO power. Build PassiveCooler (costs 50 Wood) for indoor cooling.");
+                    list.Add($"⚠️ Warm/Heatwave climate ({outdoorTemp:F1}°C) with NO power. Build {coolingSuggestion} for indoor cooling.");
                 }
                 else
                 {
-                    list.Add($"⚠️ High temperature ({outdoorTemp:F1}°C). Build Cooler for indoor refrigeration/cooling.");
+                    list.Add($"⚠️ High temperature ({outdoorTemp:F1}°C). Build {coolingSuggestion} for indoor cooling/refrigeration.");
                 }
             }
             else if (outdoorTemp <= 5f)
             {
+                string heatingSuggestion = SuggestStructures(
+                    descriptors,
+                    def =>
+                    {
+                        var heatPusher = def.GetCompProperties<CompProperties_HeatPusher>();
+                        if (heatPusher != null && heatPusher.heatPerSecond >= 5f) return true;
+                        var tempControl = def.GetCompProperties<CompProperties_TempControl>();
+                        return tempControl != null && tempControl.energyPerSecond > 0f;
+                    },
+                    preferNoPower: !hasPower,
+                    fallbackRole: "a heating structure");
+
                 if (!hasPower)
                 {
-                    list.Add($"⚠️ Cold/Freezing climate ({outdoorTemp:F1}°C) with NO power. Build Campfire (costs 20 Wood) for heating.");
+                    list.Add($"⚠️ Cold/Freezing climate ({outdoorTemp:F1}°C) with NO power. Build {heatingSuggestion} for heating.");
                 }
                 else
                 {
-                    list.Add($"⚠️ Freezing temperature ({outdoorTemp:F1}°C). Build Heater for indoor warming.");
+                    list.Add($"⚠️ Freezing temperature ({outdoorTemp:F1}°C). Build {heatingSuggestion} for indoor warming.");
                 }
             }
 
-            // Food storage check
-            int foodCount = ThingCategoryDefOf.Foods != null ? map.resourceCounter.GetCountIn(ThingCategoryDefOf.Foods) : 0;
-            if (foodCount < 10)
+            // Food storage check (nutrition-based across stockpiles and loose unforbidden food)
+            float foodNutrition = MapResourceCounter.GetAvailableFoodNutrition(map);
+            float minFoodNutrition = Math.Max(4.0f, colonists.Count * 3.0f);
+            if (foodNutrition < minFoodNutrition)
             {
-                list.Add("⚠️ Low food reserves. Build FueledStove or Campfire to prepare cooked meals.");
+                string cookingSuggestion = SuggestStructures(
+                    descriptors,
+                    def => def.AllRecipes != null && def.AllRecipes.Any(r =>
+                        r?.products != null && r.products.Any(prod =>
+                            prod?.thingDef?.ingestible != null
+                            && prod.thingDef.ingestible.HumanEdible
+                            && prod.thingDef.ingestible.preferability >= FoodPreferability.MealAwful)),
+                    preferNoPower: !hasPower,
+                    fallbackRole: "a cooking station");
+                list.Add($"⚠️ Low food reserves ({foodNutrition:F1} nutrition). Build {cookingSuggestion} to prepare cooked meals.");
             }
 
             return list;
+        }
+
+        private static string SuggestStructures(
+            IReadOnlyList<BuildableStructureDescriptor> descriptors,
+            Func<ThingDef, bool> predicate,
+            bool preferNoPower,
+            string fallbackRole)
+        {
+            if (descriptors == null || descriptors.Count == 0)
+                return fallbackRole;
+
+            var matches = new List<BuildableStructureDescriptor>();
+            for (int i = 0; i < descriptors.Count; i++)
+            {
+                var d = descriptors[i];
+                if (d == null || string.IsNullOrWhiteSpace(d.DefName)) continue;
+                var def = DefDatabase<ThingDef>.GetNamedSilentFail(d.DefName);
+                if (def != null && predicate(def))
+                {
+                    matches.Add(d);
+                }
+            }
+
+            if (matches.Count == 0)
+                return fallbackRole;
+
+            var ranked = matches
+                .OrderByDescending(d => preferNoPower ? !d.RequiresPower : d.RequiresPower)
+                .ThenByDescending(d => d.PriorityWeight)
+                .ThenBy(d => d.DefName, StringComparer.OrdinalIgnoreCase)
+                .Take(2)
+                .Select(d =>
+                {
+                    string cost = BuildableStructureCatalogPolicy.BuildCostSummary(d.CostStuffCount, d.BestStuffLabel, d.FixedCosts);
+                    return cost == "Free" ? d.DefName : $"{d.DefName} ({cost})";
+                })
+                .ToList();
+
+            return string.Join(" or ", ranked);
         }
 #endif
     }

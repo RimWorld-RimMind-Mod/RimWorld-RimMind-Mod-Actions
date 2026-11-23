@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
@@ -30,9 +32,19 @@ namespace RimMind.Actions.Policies
             => MapResourceCounter.GetAvailableCount(map, def);
 
         /// <summary>
-        /// In-game evaluation of map conditions against safety guard.
+        /// In-game evaluation of map conditions against safety guard for a single building placement,
+        /// accounting for both <paramref name="stuffDef"/> (<c>costStuffCount</c>) and fixed <c>buildingDef.costList</c>.
         /// </summary>
         public static Result<Unit, RimMindError> CheckConstructionSafety(Map? map, ThingDef? buildingDef, ThingDef? stuffDef)
+            => CheckProjectConstructionSafety(map, new[] { (buildingDef, stuffDef, 1) });
+
+        /// <summary>
+        /// In-game evaluation of map conditions against safety guard for a multi-blueprint construction project.
+        /// Evaluates concurrent blueprint capacity and total WoodLog/Steel requirements across all planned items.
+        /// </summary>
+        public static Result<Unit, RimMindError> CheckProjectConstructionSafety(
+            Map? map,
+            IEnumerable<(ThingDef? BuildingDef, ThingDef? StuffDef, int Count)> plannedItems)
         {
             if (map == null) return Result<Unit, RimMindError>.Ok(Unit.Value);
 
@@ -48,12 +60,49 @@ namespace RimMind.Actions.Policies
                 }
             }
 
-            // 2. Resource reserve check
+            // 2. Aggregate WoodLog / Steel costs across both stuff costs and fixed costList entries
+            int requiredWood = 0;
+            int requiredSteel = 0;
+            if (plannedItems != null)
+            {
+                foreach (var (buildingDef, stuffDef, count) in plannedItems)
+                {
+                    int qty = Math.Max(1, count);
+                    if (stuffDef != null)
+                    {
+                        int stuffUnits = buildingDef != null && buildingDef.MadeFromStuff
+                            ? Math.Max(1, buildingDef.costStuffCount)
+                            : 1;
+                        if (string.Equals(stuffDef.defName, "WoodLog", StringComparison.OrdinalIgnoreCase))
+                            requiredWood += stuffUnits * qty;
+                        else if (string.Equals(stuffDef.defName, "Steel", StringComparison.OrdinalIgnoreCase))
+                            requiredSteel += stuffUnits * qty;
+                    }
+
+                    var costList = buildingDef?.costList;
+                    if (costList != null)
+                    {
+                        for (int i = 0; i < costList.Count; i++)
+                        {
+                            var item = costList[i];
+                            if (item?.thingDef == null || item.count <= 0) continue;
+                            if (string.Equals(item.thingDef.defName, "WoodLog", StringComparison.OrdinalIgnoreCase))
+                                requiredWood += item.count * qty;
+                            else if (string.Equals(item.thingDef.defName, "Steel", StringComparison.OrdinalIgnoreCase))
+                                requiredSteel += item.count * qty;
+                        }
+                    }
+                }
+            }
+
             int currentWood = MapResourceCounter.GetAvailableCount(map, ThingDefOf.WoodLog);
             int currentSteel = MapResourceCounter.GetAvailableCount(map, ThingDefOf.Steel);
-            string? stuffName = stuffDef?.defName;
 
-            return ResourceSafetyPolicy.EvaluateReserves(currentWood, currentSteel, stuffName);
+            return ResourceSafetyPolicy.EvaluateMaterialRequirements(
+                currentWood,
+                currentSteel,
+                requiredWood,
+                requiredSteel);
         }
     }
 }

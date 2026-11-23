@@ -83,7 +83,7 @@ namespace RimMind.Actions.Actions
 
             // 1. Direct patient to emergency bed rest
             var patientRestArgs = BuildArgumentsJson(("pawn_id", patientId), ("action", "force_rest"));
-            var patientRest = await ExecuteAtomicAsync("pawn.job.set", patientRestArgs, args, ct).ConfigureAwait(false);
+            var patientRest = await ExecuteAtomicAsync("pawn.job.set", patientRestArgs, args, ct);
             ct.ThrowIfCancellationRequested();
 
             // 2. If doctor_id is provided (or auto-resolved on the map), direct doctor to rescue/tend patient immediately
@@ -96,8 +96,10 @@ namespace RimMind.Actions.Actions
                 for (int i = 0; i < candidates.Count; i++)
                 {
                     var c = candidates[i];
-                    if (c == null || c.thingIDNumber == patientId || c.Dead || c.Downed) continue;
+                    if (c == null || c.thingIDNumber == patientId) continue;
+                    if (!RimMind.Presentation.Api.RimMindPawnLookup.IsActiveSpawnedColonist(c) || c.Downed || c.InMentalState) continue;
                     if (c.WorkTypeIsDisabled(RimWorld.WorkTypeDefOf.Doctor)) continue;
+                    if (GuardColonistTarget(c.thingIDNumber, domain, args, "doctor_id").IsErr) continue;
                     doctorId = c.thingIDNumber;
                     hasDoctor = true;
                     break;
@@ -111,27 +113,28 @@ namespace RimMind.Actions.Actions
                 if (patientPawn != null && patientPawn.Downed && !RimWorld.RestUtility.InBed(patientPawn))
                 {
                     var rescueArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "rescue_pawn"), ("target_pawn_id", patientId));
-                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", rescueArgs, args, ct).ConfigureAwait(false);
+                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", rescueArgs, args, ct);
                 }
                 else if (patientPawn?.health != null && patientPawn.health.HasHediffsNeedingTend())
                 {
                     var tendArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "tend_pawn"), ("target_pawn_id", patientId));
-                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", tendArgs, args, ct).ConfigureAwait(false);
+                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", tendArgs, args, ct);
                 }
                 else
                 {
                     var doctorCancelArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "cancel_job"));
-                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct).ConfigureAwait(false);
+                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct);
                 }
 
                 if (doctorPrep.IsError)
                 {
+                    ct.ThrowIfCancellationRequested();
                     var doctorCancelArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "cancel_job"));
-                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct).ConfigureAwait(false);
+                    doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct);
                 }
 #else
                 var doctorCancelArgs = BuildArgumentsJson(("pawn_id", doctorId), ("action", "cancel_job"));
-                doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct).ConfigureAwait(false);
+                doctorPrep = await ExecuteAtomicAsync("pawn.job.set", doctorCancelArgs, args, ct);
 #endif
             }
 

@@ -73,17 +73,17 @@ namespace RimMind.Actions.Actions
 
             // 1. Interrupt risky active job
             var cancelJobArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "cancel_job"));
-            var cancelJob = await ExecuteAtomicAsync("pawn.job.set", cancelJobArgs, args, ct).ConfigureAwait(false);
+            var cancelJob = await ExecuteAtomicAsync("pawn.job.set", cancelJobArgs, args, ct);
             ct.ThrowIfCancellationRequested();
 
             // 2. Undraft pawn to allow free autonomous movement/retreat
             var undraftArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "undraft"));
-            var undraft = await ExecuteAtomicAsync("pawn.draft.toggle", undraftArgs, args, ct).ConfigureAwait(false);
+            var undraft = await ExecuteAtomicAsync("pawn.draft.toggle", undraftArgs, args, ct);
             ct.ThrowIfCancellationRequested();
 
             // 3. Command pawn to shelter/rest
             var restArgs = BuildArgumentsJson(("pawn_id", pawnId), ("action", "force_rest"));
-            var rest = await ExecuteAtomicAsync("pawn.job.set", restArgs, args, ct).ConfigureAwait(false);
+            var rest = await ExecuteAtomicAsync("pawn.job.set", restArgs, args, ct);
 
             // No mood thought is injected: granting Catharsis on every LLM call was a free, repeatable mood buff.
             var summary = BuildStepSummary(

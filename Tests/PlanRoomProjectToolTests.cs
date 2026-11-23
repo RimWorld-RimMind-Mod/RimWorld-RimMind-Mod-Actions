@@ -1,69 +1,97 @@
-using System;
-using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+using RimMind.Actions.Actions;
+using RimMind.Application.Common.Models.Tools;
+using RimMind.Domain.Agent.Policies;
+using RimMind.Domain.Common;
+using RimMind.Domain.ValueObjects;
 using Xunit;
 
 namespace RimMind.Actions.Tests
 {
     public class PlanRoomProjectToolTests
     {
-        private static readonly string RepoRoot = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-
-        private static string ReadActionsSource(string relativePath)
+        [Fact]
+        public void PlanRoomProject_Declares_Metadata_And_Parameters_Schema()
         {
-            var path = Path.Combine(RepoRoot, "RimMind-Actions", "Source", relativePath);
-            Assert.True(File.Exists(path), $"Missing source file: {path}");
-            return File.ReadAllText(path);
+            var tool = new PlanRoomProjectCompositeTool();
+            Assert.Equal("actions_plan_room_project", tool.Id);
+            Assert.IsAssignableFrom<CompositeToolCallBase>(tool);
+
+            var schema = JObject.Parse(tool.Definition.ParametersSchema);
+            var props = schema["properties"] as JObject;
+            Assert.NotNull(props);
+            Assert.NotNull(props!["room_type"]);
+            Assert.NotNull(props["size"]);
+            Assert.NotNull(props["stuff_def"]);
+            Assert.NotNull(props["pawn_id"]);
+            Assert.NotNull(props["include_bed"]);
+
+            var decision = tool.Classify(new ToolCallArgs { ToolName = tool.Id, ArgumentsJson = "{\"room_type\":\"Shelter\"}" });
+            Assert.Equal(AutonomyDomain.BlueprintPlacement, decision.Domain);
         }
 
         [Fact]
-        public void PlanRoomProject_Declares_Correct_Id_And_Extends_CompositeToolCallBase()
+        public async Task PlanRoomProject_Enforces_MainThread_And_BlueprintPlacement_Guard()
         {
-            var source = ReadActionsSource(Path.Combine("Actions", "PlanRoomProjectCompositeTool.cs"));
-            Assert.Contains("public sealed class PlanRoomProjectCompositeTool : CompositeToolCallBase", source);
-            Assert.Contains("public override string Id => \"actions_plan_room_project\";", source);
-        }
+            var tool = new PlanRoomProjectCompositeTool();
+            try
+            {
+                Verse.UnityData.IsInMainThread = false;
+                var offThread = await tool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "room-thread",
+                        ToolName = tool.Id,
+                        ArgumentsJson = "{\"room_type\":\"Bedroom\"}",
+                        TraceId = "trace-room-thread"
+                    },
+                    CancellationToken.None);
 
-        [Fact]
-        public void PlanRoomProject_Declares_Parameters_Schema()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "PlanRoomProjectCompositeTool.cs"));
-            Assert.Contains("\"room_type\"", source);
-            Assert.Contains("\"size\"", source);
-            Assert.Contains("\"stuff_def\"", source);
-            Assert.Contains("\"pawn_id\"", source);
-            Assert.Contains("\"include_bed\"", source);
-        }
+                Assert.True(offThread.IsErr);
+                Assert.Equal(RimMindErrorCode.ToolExecutionFailed, offThread.Error.Code);
+                Assert.Equal("trace-room-thread", offThread.Error.TraceId);
 
-        [Fact]
-        public void PlanRoomProject_Integrates_BlueprintPlacement_Autonomy_Guard()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "PlanRoomProjectCompositeTool.cs"));
-            Assert.Contains("ActionPermissionGuard.CheckPermission", source);
-            Assert.Contains("AutonomyDomain.BlueprintPlacement", source);
-        }
+                Verse.UnityData.IsInMainThread = true;
+                AutonomyDomain? capturedDomain = null;
+                CompositeToolCallBase.TestColonistGuard = (_, domain, _) =>
+                {
+                    capturedDomain = domain;
+                    return Result<Unit, RimMindError>.Err(RimMindErrors.ToolPolicyDenied(tool.Id, "approval required"));
+                };
 
-        [Fact]
-        public void PlanRoomProject_Integrates_ResourceSafetyGuard()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "PlanRoomProjectCompositeTool.cs"));
-            Assert.Contains("ResourceSafetyGuard.CheckConstructionSafety", source);
-        }
+                var denied = await tool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "room-guard",
+                        ToolName = tool.Id,
+                        ArgumentsJson = "{\"room_type\":\"Bedroom\",\"pawn_id\":11}"
+                    },
+                    CancellationToken.None);
 
-        [Fact]
-        public void PlanRoomProject_Chains_Shared_ConstructionIntentChainer()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "PlanRoomProjectCompositeTool.cs"));
-            var chainerSource = ReadActionsSource(Path.Combine("Actions", "ConstructionIntentChainer.cs"));
-            Assert.DoesNotContain("using RimMind.Infrastructure", source);
-            Assert.DoesNotContain("using RimMind.Infrastructure", chainerSource);
-            Assert.Contains("ConstructionIntentChainer.TryChainProject", source);
-            Assert.Contains("RimMindAPI.Agent.StartIntentSession", chainerSource);
-            Assert.Contains("PlaceBlueprintForBuild", source);
-            Assert.Contains("targetCells", source);
-            Assert.Contains("WorkGiver_ConstructDeliverResourcesToFrames", chainerSource);
-            Assert.Contains("GenRadial.RadialCellsAround(origin, 30f, true)", source);
-            Assert.DoesNotContain("for (int r = 4; r <= 30; r += 2)", source);
+                Assert.True(denied.IsErr);
+                Assert.Equal(AutonomyDomain.BlueprintPlacement, capturedDomain);
+                Assert.Equal(RimMindErrorCode.ToolPolicyDenied, denied.Error.Code);
+
+                CompositeToolCallBase.TestColonistGuard = null;
+                var ok = await tool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "room-ok",
+                        ToolName = tool.Id,
+                        ArgumentsJson = "{\"room_type\":\"Bedroom\",\"size\":5}"
+                    },
+                    CancellationToken.None);
+
+                Assert.True(ok.IsOk);
+                Assert.False(ok.Value.IsError);
+            }
+            finally
+            {
+                Verse.UnityData.IsInMainThread = true;
+                CompositeToolCallBase.TestColonistGuard = null;
+            }
         }
     }
 }

@@ -1,55 +1,101 @@
-using System;
-using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+using RimMind.Actions.Actions;
+using RimMind.Application.Common.Models.Tools;
+using RimMind.Domain.Agent.Policies;
+using RimMind.Domain.Common;
+using RimMind.Domain.ValueObjects;
 using Xunit;
 
 namespace RimMind.Actions.Tests
 {
     public class AddWorktableBillToolTests
     {
-        private static readonly string RepoRoot = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-
-        private static string ReadActionsSource(string relativePath)
+        [Fact]
+        public void AddWorktableBill_Declares_Metadata_And_Parameters_Schema()
         {
-            var path = Path.Combine(RepoRoot, "RimMind-Actions", "Source", relativePath);
-            Assert.True(File.Exists(path), $"Missing source file: {path}");
-            return File.ReadAllText(path);
+            var tool = new AddWorktableBillCompositeTool();
+            Assert.Equal("actions_add_worktable_bill", tool.Id);
+            Assert.IsAssignableFrom<CompositeToolCallBase>(tool);
+
+            var schema = JObject.Parse(tool.Definition.ParametersSchema);
+            var props = schema["properties"] as JObject;
+            Assert.NotNull(props);
+            Assert.NotNull(props!["recipe_def"]);
+            Assert.NotNull(props["worktable_def"]);
+            Assert.NotNull(props["target_count"]);
+            Assert.NotNull(props["repeat_mode"]);
+            Assert.NotNull(props["pawn_id"]);
         }
 
         [Fact]
-        public void AddWorktableBill_Declares_Correct_Id_And_Extends_CompositeToolCallBase()
+        public async Task AddWorktableBill_Validates_Input_MainThread_And_DomainGuard()
         {
-            var source = ReadActionsSource(Path.Combine("Actions", "AddWorktableBillCompositeTool.cs"));
-            Assert.Contains("public sealed class AddWorktableBillCompositeTool : CompositeToolCallBase", source);
-            Assert.Contains("public override string Id => \"actions_add_worktable_bill\";", source);
-        }
+            var tool = new AddWorktableBillCompositeTool();
+            try
+            {
+                var missing = await tool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "bill-missing",
+                        ToolName = tool.Id,
+                        ArgumentsJson = "{}",
+                        TraceId = "trace-bill-missing"
+                    },
+                    CancellationToken.None);
 
-        [Fact]
-        public void AddWorktableBill_Declares_Parameters_Schema()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "AddWorktableBillCompositeTool.cs"));
-            Assert.Contains("\"recipe_def\"", source);
-            Assert.Contains("\"worktable_def\"", source);
-            Assert.Contains("\"target_count\"", source);
-            Assert.Contains("\"repeat_mode\"", source);
-            Assert.Contains("\"pawn_id\"", source);
-        }
+                Assert.True(missing.IsErr);
+                Assert.Equal(RimMindErrorCode.MechanismInvalidAction, missing.Error.Code);
+                Assert.Equal("trace-bill-missing", missing.Error.TraceId);
 
-        [Fact]
-        public void AddWorktableBill_Integrates_Autonomy_Permission_Check()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "AddWorktableBillCompositeTool.cs"));
-            Assert.Contains("ActionPermissionGuard.CheckPermission", source);
-            Assert.Contains("AutonomyDomain.WorktableBills", source);
-        }
+                Verse.UnityData.IsInMainThread = false;
+                var offThread = await tool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "bill-thread",
+                        ToolName = tool.Id,
+                        ArgumentsJson = "{\"recipe_def\":\"CookMealSimple\"}"
+                    },
+                    CancellationToken.None);
+                Assert.True(offThread.IsErr);
+                Assert.Equal(RimMindErrorCode.ToolExecutionFailed, offThread.Error.Code);
 
-        [Fact]
-        public void AddWorktableBill_Handles_Duplicate_Prevention_And_TargetCount()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "AddWorktableBillCompositeTool.cs"));
-            Assert.Contains("billStack", source);
-            Assert.Contains("BillRepeatModeDefOf.TargetCount", source);
-            Assert.Contains("AddBill", source);
+                Verse.UnityData.IsInMainThread = true;
+                AutonomyDomain? capturedDomain = null;
+                CompositeToolCallBase.TestColonistGuard = (_, domain, _) =>
+                {
+                    capturedDomain = domain;
+                    return Result<Unit, RimMindError>.Err(RimMindErrors.ToolPolicyDenied(tool.Id, "denied"));
+                };
+
+                var nonSurvival = await tool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "bill-craft",
+                        ToolName = tool.Id,
+                        ArgumentsJson = "{\"recipe_def\":\"Make_SculptureSmall\",\"pawn_id\":5}"
+                    },
+                    CancellationToken.None);
+                Assert.True(nonSurvival.IsErr);
+                Assert.Equal(AutonomyDomain.WorktableBills, capturedDomain);
+
+                var survival = await tool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "bill-cook",
+                        ToolName = tool.Id,
+                        ArgumentsJson = "{\"recipe_def\":\"CookMealSimple\",\"pawn_id\":5}"
+                    },
+                    CancellationToken.None);
+                Assert.True(survival.IsErr);
+                Assert.Equal(AutonomyDomain.EmergencySurvival, capturedDomain);
+            }
+            finally
+            {
+                Verse.UnityData.IsInMainThread = true;
+                CompositeToolCallBase.TestColonistGuard = null;
+            }
         }
     }
 }

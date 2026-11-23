@@ -1,23 +1,10 @@
-using System;
-using System.IO;
 using RimMind.Actions.Policies;
-using RimMind.Domain.Agent.Policies;
 using Xunit;
 
 namespace RimMind.Actions.Tests
 {
     public class ResourceSafetyGuardTests
     {
-        private static readonly string RepoRoot = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-
-        private static string ReadActionsSource(string relativePath)
-        {
-            var path = Path.Combine(RepoRoot, "RimMind-Actions", "Source", relativePath);
-            Assert.True(File.Exists(path), $"Missing source file: {path}");
-            return File.ReadAllText(path);
-        }
-
         [Fact]
         public void ResourceSafetyPolicy_Constants_Match_RFC_Specifications()
         {
@@ -73,24 +60,34 @@ namespace RimMind.Actions.Tests
             }
         }
 
-        [Fact]
-        public void PlaceBlueprintCompositeTool_Integrates_Permission_And_Safety_Guards()
+        [Theory]
+        [InlineData(79, 500, 50, 0, false)]   // Fixed-cost WoodLog building (e.g. PassiveCooler) below MinWoodReserve
+        [InlineData(80, 500, 50, 0, true)]    // Meets MinWoodReserve (80 >= max(80, 50))
+        [InlineData(100, 500, 120, 0, false)] // Multi-blueprint room project exceeds available wood even above reserve
+        [InlineData(120, 500, 120, 0, true)]  // Enough wood for multi-blueprint room project
+        [InlineData(500, 49, 0, 20, false)]   // Fixed-cost Steel building below MinSteelReserve
+        [InlineData(500, 80, 0, 90, false)]   // High-cost Steel building (e.g. Cooler) exceeds available steel
+        [InlineData(500, 90, 0, 90, true)]    // Enough steel for fixed-cost building
+        [InlineData(10, 10, 0, 0, true)]      // Zero wood/steel requirements (e.g. stone-only structure)
+        public void EvaluateMaterialRequirements_Enforces_FixedCost_And_Project_Thresholds(
+            int availableWood,
+            int availableSteel,
+            int requiredWood,
+            int requiredSteel,
+            bool shouldPass)
         {
-            var source = ReadActionsSource(Path.Combine("Actions", "PlaceBlueprintCompositeTool.cs"));
+            var result = ResourceSafetyPolicy.EvaluateMaterialRequirements(
+                availableWood, availableSteel, requiredWood, requiredSteel);
 
-            Assert.Contains("ActionPermissionGuard.CheckPermission", source);
-            Assert.Contains("AutonomyDomain.BlueprintPlacement", source);
-            Assert.Contains("ResourceSafetyGuard.CheckConstructionSafety", source);
-        }
-
-        [Fact]
-        public void ActionPermissionGuard_Source_Enforces_TriState_Branches()
-        {
-            var source = ReadActionsSource(Path.Combine("Policies", "ActionPermissionGuard.cs"));
-
-            Assert.Contains("AutonomyLevel.Disabled", source);
-            Assert.Contains("AutonomyLevel.RequireApproval", source);
-            Assert.Contains("AutonomyLevel.FullAutonomous", source);
+            if (shouldPass)
+            {
+                Assert.True(result.IsOk);
+            }
+            else
+            {
+                Assert.False(result.IsOk);
+                Assert.Contains("[Safety Guard]", result.Error.Message);
+            }
         }
     }
 }

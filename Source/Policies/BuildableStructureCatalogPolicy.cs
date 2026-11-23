@@ -110,14 +110,20 @@ namespace RimMind.Actions.Policies
             string key = (defName ?? string.Empty).Trim().ToLowerInvariant();
             if (key.Contains("fence") || key.Contains("penmarker") || key.Contains("animalflap"))
                 return "livestock";
-            if (key.Contains("bed") || key.Contains("table") || key.Contains("chair") || key.Contains("stool"))
+            if (key.Contains("bed") || key.Contains("sleep"))
                 return "furniture";
-            if (key.Contains("cooler") || key.Contains("heater") || key.Contains("campfire") || key.Contains("vent"))
-                return "temperature";
-            if (key.Contains("stove") || key.Contains("bench") || key.Contains("butcher") || key.Contains("smith") || key.Contains("tailor") || key.Contains("research"))
+            if (key.Contains("stove") || key.Contains("bench") || key.Contains("table_")
+                || key.Contains("butcher") || key.Contains("smith") || key.Contains("tailor")
+                || key.Contains("research") || key.Contains("machining") || key.Contains("fabrication")
+                || key.Contains("brewery") || key.Contains("stonecutter"))
                 return "production";
-            if (key.Contains("horseshoe") || key.Contains("chess") || key.Contains("hoopstone"))
+            if (key.Contains("horseshoe") || key.Contains("chess") || key.Contains("hoopstone") || key.Contains("poker"))
                 return "recreation";
+            if (key.Contains("table") || key.Contains("chair") || key.Contains("stool"))
+                return "furniture";
+            if (key.Contains("cooler") || key.Contains("heater") || key.Contains("campfire")
+                || key.Contains("vent") || key.Contains("torch") || key.Contains("lamp") || key.Contains("brazier"))
+                return "temperature";
             if (key.Contains("turret") || key.Contains("trap") || key.Contains("sandbag") || key.Contains("barricade"))
                 return "defense";
             if (key.Contains("wall") || key.Contains("door"))

@@ -1,66 +1,80 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
+using Newtonsoft.Json.Linq;
+using RimMind.Actions.Actions;
 using RimMind.Actions.Policies;
+using RimMind.Actions.Spatial;
+using RimMind.Application.Common.Models.Tools;
+using RimMind.Domain.ValueObjects;
 using Xunit;
 
 namespace RimMind.Actions.Tests
 {
     public class QueryBuildableStructuresCompositeToolTests
     {
-        private static readonly string RepoRoot = Path.GetFullPath(
-            Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", ".."));
-
-        private static string ReadActionsSource(string relativePath)
+        [Fact]
+        public void QueryBuildableStructures_Declares_QueryMetadata_And_CategorySchema()
         {
-            var path = Path.Combine(RepoRoot, "RimMind-Actions", "Source", relativePath);
-            Assert.True(File.Exists(path), $"Missing source file: {path}");
-            return File.ReadAllText(path);
+            var tool = new QueryBuildableStructuresCompositeTool();
+            Assert.Equal("actions_query_buildable_structures", tool.Id);
+            Assert.IsAssignableFrom<CompositeToolCallBase>(tool);
+            Assert.Equal(ToolKind.Query, tool.Manifest.Kind);
+
+            var schema = JObject.Parse(tool.Definition.ParametersSchema);
+            string desc = schema["properties"]!["category"]!["description"]!.ToString();
+            Assert.Contains("furniture", desc);
+            Assert.Contains("temperature", desc);
+            Assert.Contains("production", desc);
+            Assert.Contains("recreation", desc);
+            Assert.Contains("defense", desc);
+            Assert.Contains("livestock", desc);
+            Assert.Contains("power", desc);
+            Assert.Contains("structure", desc);
         }
 
         [Fact]
-        public void QueryBuildableStructures_Declares_Correct_Id_And_Extends_CompositeToolCallBase()
+        public async Task QueryBuildableStructures_Normalizes_Category_And_Guards_MainThread()
         {
-            var source = ReadActionsSource(Path.Combine("Actions", "QueryBuildableStructuresCompositeTool.cs"));
-            Assert.Contains("public sealed class QueryBuildableStructuresCompositeTool : CompositeToolCallBase", source);
-            Assert.Contains("public override string Id => \"actions_query_buildable_structures\";", source);
+            var tool = new QueryBuildableStructuresCompositeTool();
+            try
+            {
+                var defaultRes = await tool.ExecuteAsync(
+                    new ToolCallArgs { ToolCallId = "q-1", ToolName = tool.Id, ArgumentsJson = "{}" },
+                    CancellationToken.None);
+                Assert.True(defaultRes.IsOk);
+                Assert.Equal("all", JObject.Parse(defaultRes.Value.Content)["category"]?.ToString());
+
+                var filteredRes = await tool.ExecuteAsync(
+                    new ToolCallArgs { ToolCallId = "q-2", ToolName = tool.Id, ArgumentsJson = "{\"category\":\"  Furniture \"}" },
+                    CancellationToken.None);
+                Assert.True(filteredRes.IsOk);
+                Assert.Equal("furniture", JObject.Parse(filteredRes.Value.Content)["category"]?.ToString());
+
+                Verse.UnityData.IsInMainThread = false;
+                var offThread = await tool.ExecuteAsync(
+                    new ToolCallArgs { ToolCallId = "q-3", ToolName = tool.Id, ArgumentsJson = "{}" },
+                    CancellationToken.None);
+                Assert.True(offThread.IsErr);
+                Assert.Equal(RimMindErrorCode.ToolExecutionFailed, offThread.Error.Code);
+            }
+            finally
+            {
+                Verse.UnityData.IsInMainThread = true;
+            }
         }
 
         [Fact]
-        public void QueryBuildableStructures_Declares_Category_Filter_Schema()
+        public void SpatialBuildingClassifier_Delegates_Consistently_To_BuildableStructureCatalogPolicy()
         {
-            var source = ReadActionsSource(Path.Combine("Actions", "QueryBuildableStructuresCompositeTool.cs"));
-            Assert.Contains("\"category\"", source);
-            Assert.Contains("furniture", source);
-            Assert.Contains("temperature", source);
-            Assert.Contains("production", source);
-            Assert.Contains("recreation", source);
-            Assert.Contains("defense", source);
-            Assert.Contains("livestock", source);
-        }
-
-        [Fact]
-        public void QueryBuildableStructures_Contains_Bottleneck_Detection_For_Beds_And_Climate()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "QueryBuildableStructuresCompositeTool.cs"));
-            Assert.Contains("DetectBottlenecks", source);
-            Assert.Contains("SleptOutside", source);
-            Assert.Contains("SleptOnGround", source);
-            Assert.Contains("PassiveCooler", source);
-            Assert.Contains("Campfire", source);
-        }
-
-        [Fact]
-        public void QueryBuildableStructures_Uses_Dynamic_DefDatabase_Discovery_Instead_Of_Hardcoded_List()
-        {
-            var source = ReadActionsSource(Path.Combine("Actions", "QueryBuildableStructuresCompositeTool.cs"));
-            Assert.Contains("DefDatabase<ThingDef>.AllDefsListForReading", source);
-            Assert.Contains("BuildableByPlayer", source);
-            Assert.Contains("IsResearchFinished", source);
-            Assert.Contains("BuildableStructureCatalogPolicy.FilterAndProject", source);
-            Assert.DoesNotContain("GetCuratedStructures", source);
-            Assert.DoesNotContain("\"HorseshoePin\"", source);
-            Assert.DoesNotContain("\"ResearchBench\"", source);
+            Assert.Equal(SpatialBuildingCategory.Sleeping, SpatialBuildingClassifier.Classify("Bed", isBed: true));
+            Assert.Equal(SpatialBuildingCategory.Production, SpatialBuildingClassifier.Classify("Modded_AutoSmelter", isWorkTable: true));
+            Assert.Equal(SpatialBuildingCategory.DiningRecreation, SpatialBuildingClassifier.Classify("Table2x2c", isTable: true));
+            Assert.Equal(SpatialBuildingCategory.DiningRecreation, SpatialBuildingClassifier.Classify("HorseshoesPin", isJoy: true));
+            Assert.Equal(SpatialBuildingCategory.TemperatureLight, SpatialBuildingClassifier.Classify("PassiveCooler"));
+            Assert.Equal(SpatialBuildingCategory.Defense, SpatialBuildingClassifier.Classify("Turret_MiniTurret", isDefense: true));
+            Assert.Equal(SpatialBuildingCategory.Structure, SpatialBuildingClassifier.Classify("Wall"));
         }
 
         [Fact]

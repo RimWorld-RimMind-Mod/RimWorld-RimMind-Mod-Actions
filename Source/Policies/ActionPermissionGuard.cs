@@ -1,6 +1,6 @@
 using Newtonsoft.Json.Linq;
-using RimMind.Actions.Actions;
 using RimMind.Application.Common.Models.Tools;
+using RimMind.Application.Features.Tools;
 using RimMind.Domain.Agent.Policies;
 using RimMind.Domain.Common;
 using RimMind.Domain.ValueObjects;
@@ -12,23 +12,10 @@ namespace RimMind.Actions.Policies
 {
     /// <summary>
     /// Guard that enforces colonist tri-state autonomy permissions and resolves actor/map targets
-    /// via Core <see cref="ActorMapResolver"/> and <see cref="RimMindAPI.Text"/>.
+    /// via Core <see cref="ActorMapResolver"/>, <see cref="CompositeToolExecutionTemplate"/>, and <see cref="RimMindAPI.Text"/>.
     /// </summary>
     public static class ActionPermissionGuard
     {
-        public static bool IsChineseLanguageActive()
-        {
-            try
-            {
-                string lang = LanguageDatabase.activeLanguage?.folderName ?? LanguageDatabase.activeLanguage?.FriendlyNameEnglish ?? "";
-                return lang.IndexOf("Chinese", System.StringComparison.OrdinalIgnoreCase) >= 0;
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
         public static string TranslateOrFallback(string key, string fallbackEn, params object[] args)
             => RimMindAPI.Text.TrOr(key, fallbackEn, args);
 
@@ -36,7 +23,8 @@ namespace RimMind.Actions.Policies
             Pawn? pawn,
             string toolId,
             AutonomyDomain domain,
-            bool isPreApproved = false)
+            bool isPreApproved = false,
+            string? traceId = null)
         {
             var level = RimMindAPI.Autonomy.GetLevel(pawn, domain);
 
@@ -47,7 +35,10 @@ namespace RimMind.Actions.Policies
                         TranslateOrFallback(
                             "RimMind.Actions.Permission.Disabled",
                             "[Permission Blocked] Colony leader has disabled autonomous decisions in domain ({0}) for this colonist.",
-                            domain)));
+                            domain)) with
+                    {
+                        TraceId = traceId
+                    });
             }
 
             if (level == AutonomyLevel.RequireApproval)
@@ -58,11 +49,14 @@ namespace RimMind.Actions.Policies
                 }
 
                 return Result<Unit, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(toolId,
+                    RimMindErrors.ToolPolicyDenied(toolId,
                         TranslateOrFallback(
                             "RimMind.Actions.Permission.RequireApproval",
                             "[Approval Required] This operation ({0}) requires colony leader approval before execution.",
-                            domain)));
+                            domain)) with
+                    {
+                        TraceId = traceId
+                    });
             }
 
             if (level == AutonomyLevel.FullAutonomous)
@@ -77,10 +71,10 @@ namespace RimMind.Actions.Policies
             Pawn? pawn,
             string toolId,
             AutonomyDomain domain,
-            ToolCallArgs args)
+            ToolCallArgs? args)
         {
             bool preApproved = CompositeToolCallBase.IsPreApproved(args);
-            return CheckPermission(pawn, toolId, domain, preApproved);
+            return CheckPermission(pawn, toolId, domain, preApproved, args?.TraceId);
         }
 
         /// <summary>
@@ -114,7 +108,12 @@ namespace RimMind.Actions.Policies
             bool fallbackToAnyActiveColonist = false,
             JObject? parsedArgs = null)
         {
-            var root = parsedArgs ?? CompositeToolCallBase.ParseArgumentsObject(args.ArgumentsJson);
+            if (!UnityData.IsInMainThread)
+            {
+                return new ActorResolution(null, null, "Cannot resolve actor or map off the Unity main thread.");
+            }
+
+            var root = parsedArgs ?? CompositeToolExecutionTemplate.TryParseArgumentsObject(args.ArgumentsJson);
             bool anyIdSupplied = false;
 
             Pawn? TryResolve(int id, out Map? resolvedMap)
@@ -133,11 +132,11 @@ namespace RimMind.Actions.Policies
             Pawn? actor = null;
             Map? actorMap = null;
 
-            if (CompositeToolCallBase.TryReadArgument<int>(root, pawnIdKey, out int argPawnId))
+            if (CompositeToolExecutionTemplate.TryGetArgument<int>(root, pawnIdKey, out int argPawnId))
                 actor = TryResolve(argPawnId, out actorMap);
             if (actor == null && args.PawnId.HasValue)
                 actor = TryResolve(args.PawnId.Value, out actorMap);
-            if (actor == null && CompositeToolCallBase.TryParsePawnId(args.NpcId, out int npcPawnId))
+            if (actor == null && PawnIdParser.TryParse(args.NpcId, out int npcPawnId))
                 actor = TryResolve(npcPawnId, out actorMap);
 
             if (actor != null)
@@ -161,7 +160,7 @@ namespace RimMind.Actions.Policies
         /// <summary>
         /// Resolves an active spawned colonist on the given map from <paramref name="pawnIdKey"/> argument,
         /// <see cref="ToolCallArgs.PawnId"/>, or <see cref="ToolCallArgs.NpcId"/>, with optional fallback
-        /// to any standing active colonist on the map.
+        /// to any standing, mentally stable active colonist on the map.
         /// </summary>
         public static Pawn? ResolveColonistOnMap(
             Map? map,
@@ -174,7 +173,7 @@ namespace RimMind.Actions.Policies
             if (spawnedColonists.Count == 0)
                 return null;
 
-            var root = parsedArgs ?? CompositeToolCallBase.ParseArgumentsObject(args.ArgumentsJson);
+            var root = parsedArgs ?? CompositeToolExecutionTemplate.TryParseArgumentsObject(args.ArgumentsJson);
 
             Pawn? FindActiveColonistById(int id)
             {
@@ -182,13 +181,13 @@ namespace RimMind.Actions.Policies
                 for (int i = 0; i < spawnedColonists.Count; i++)
                 {
                     var p = spawnedColonists[i];
-                    if (p != null && p.thingIDNumber == id && RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
+                    if (p != null && p.thingIDNumber == id && RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed && !p.InMentalState)
                         return p;
                 }
                 return null;
             }
 
-            if (CompositeToolCallBase.TryReadArgument<int>(root, pawnIdKey, out int argPawnId) && argPawnId > 0)
+            if (CompositeToolExecutionTemplate.TryGetArgument<int>(root, pawnIdKey, out int argPawnId) && argPawnId > 0)
             {
                 var byArg = FindActiveColonistById(argPawnId);
                 if (byArg != null) return byArg;
@@ -200,7 +199,7 @@ namespace RimMind.Actions.Policies
                 if (byContext != null) return byContext;
             }
 
-            if (CompositeToolCallBase.TryParsePawnId(args.NpcId, out int npcPawnId) && npcPawnId > 0)
+            if (PawnIdParser.TryParse(args.NpcId, out int npcPawnId) && npcPawnId > 0)
             {
                 var byNpc = FindActiveColonistById(npcPawnId);
                 if (byNpc != null) return byNpc;
@@ -211,7 +210,7 @@ namespace RimMind.Actions.Policies
                 for (int i = 0; i < spawnedColonists.Count; i++)
                 {
                     var p = spawnedColonists[i];
-                    if (RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed)
+                    if (RimMindPawnLookup.IsActiveSpawnedColonist(p) && !p.Downed && !p.InMentalState)
                         return p;
                 }
             }

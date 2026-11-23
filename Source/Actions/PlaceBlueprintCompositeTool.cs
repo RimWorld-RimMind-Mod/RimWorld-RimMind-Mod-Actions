@@ -60,193 +60,195 @@ namespace RimMind.Actions.Actions
             ToolCallArgs args,
             CancellationToken ct)
         {
-            var argsRoot = TryParseArgumentsObject(args.ArgumentsJson);
-            if (!TryGetArgument<string>(argsRoot, "building_def", out var buildingDefName)
-                || string.IsNullOrWhiteSpace(buildingDefName))
+            return ExecuteDirectToolAsync(args, (argsRoot, effectiveArgs, _) =>
             {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, "Missing required parameter 'building_def'.")));
-            }
+                if (!TryGetArgument<string>(argsRoot, "building_def", out var buildingDefName)
+                    || string.IsNullOrWhiteSpace(buildingDefName))
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id, "Missing required parameter 'building_def'.") with { TraceId = effectiveArgs.TraceId }));
+                }
 
 #if RIMMIND_ACTIONS_TESTS
-            var domain = ResolveAutonomyDomain(argsRoot, args)
-                ?? AutonomyDomain.BlueprintPlacement;
-            if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
-            {
-                var guard = GuardColonistTarget(testPawnId, domain, args);
-                if (guard.IsErr)
+                var domain = ResolveAutonomyDomain(argsRoot, effectiveArgs)
+                    ?? AutonomyDomain.BlueprintPlacement;
+                if (TryGetArgument<int>(argsRoot, "pawn_id", out int testPawnId) && testPawnId > 0)
                 {
-                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                    var guard = GuardColonistTarget(testPawnId, domain, effectiveArgs);
+                    if (guard.IsErr)
+                    {
+                        return Task.FromResult(Result<ToolResult, RimMindError>.Err(guard.Error));
+                    }
                 }
-            }
-            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
-                ToolResult.Ok($"Placed {buildingDefName}", args.ToolCallId, Id)));
+                return Task.FromResult(Result<ToolResult, RimMindError>.Ok(
+                    ToolResult.Ok($"Placed {buildingDefName}", effectiveArgs.ToolCallId, Id)));
 #else
-            var actorResolution = ActionPermissionGuard.ResolveActorAndMap(args, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
-            if (actorResolution.Error != null)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidAction(Id, actorResolution.Error)));
-            }
+                var actorResolution = ActionPermissionGuard.ResolveActorAndMap(effectiveArgs, "pawn_id", fallbackToAnyActiveColonist: true, parsedArgs: argsRoot);
+                if (actorResolution.Error != null)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidAction(Id, actorResolution.Error) with { TraceId = effectiveArgs.TraceId }));
+                }
 
-            var map = actorResolution.Map;
-            if (map == null)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.Internal("No active map available for blueprint placement.")));
-            }
+                var map = actorResolution.Map;
+                if (map == null)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.Internal("No active map available for blueprint placement.") with { TraceId = effectiveArgs.TraceId }));
+                }
 
-            // 1. Resolve BuildableDef
-            var thingDef = ConstructionIntentChainer.ResolveThingDef(buildingDefName);
-            if (thingDef == null)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidDefName($"Building '{buildingDefName}' not found. Call actions_query_buildable_structures to see valid buildable defs.")));
-            }
+                // 1. Resolve BuildableDef
+                var thingDef = ConstructionIntentChainer.ResolveThingDef(buildingDefName);
+                if (thingDef == null)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidDefName($"Building '{buildingDefName}' not found. Call actions_query_buildable_structures to see valid buildable defs.") with { TraceId = effectiveArgs.TraceId }));
+                }
 
-            // Only accept player-buildable, research-unlocked buildings.
-            if (thingDef.category != ThingCategory.Building || !thingDef.BuildableByPlayer || !thingDef.IsResearchFinished)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.InvalidDefName($"'{thingDef.defName}' is not a player-buildable, research-unlocked building. Call actions_query_buildable_structures to see valid buildable defs.")));
-            }
+                // Only accept player-buildable, research-unlocked buildings.
+                if (thingDef.category != ThingCategory.Building || !thingDef.BuildableByPlayer || !thingDef.IsResearchFinished)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.InvalidDefName($"'{thingDef.defName}' is not a player-buildable, research-unlocked building. Call actions_query_buildable_structures to see valid buildable defs.") with { TraceId = effectiveArgs.TraceId }));
+                }
 
-            // 2. Auto-Stuff Selection (Stockpile-Aware)
-            TryGetArgument<string>(argsRoot, "stuff_def", out var stuffDefName);
-            ThingDef? selectedStuff = ConstructionIntentChainer.ResolveStuffForBuilding(thingDef, stuffDefName, map);
+                // 2. Auto-Stuff Selection (Stockpile-Aware)
+                TryGetArgument<string>(argsRoot, "stuff_def", out var stuffDefName);
+                ThingDef? selectedStuff = ConstructionIntentChainer.ResolveStuffForBuilding(thingDef, stuffDefName, map);
 
-            // 3. Anchor and Placement Position
-            Pawn? anchorPawn = actorResolution.Pawn;
+                // 3. Anchor and Placement Position
+                Pawn? anchorPawn = actorResolution.Pawn;
 
-            // Autonomy Permission & Resource Safety Guards
-            var permCheck = ActionPermissionGuard.CheckPermission(anchorPawn, Id, AutonomyDomain.BlueprintPlacement, args);
-            if (!permCheck.IsOk)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
-            }
+                // Autonomy Permission & Resource Safety Guards
+                var permCheck = ActionPermissionGuard.CheckPermission(anchorPawn, Id, AutonomyDomain.BlueprintPlacement, effectiveArgs);
+                if (!permCheck.IsOk)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(permCheck.Error));
+                }
 
-            var safetyCheck = ResourceSafetyGuard.CheckConstructionSafety(map, thingDef, selectedStuff);
-            if (!safetyCheck.IsOk)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(safetyCheck.Error));
-            }
+                var safetyCheck = ResourceSafetyGuard.CheckConstructionSafety(map, thingDef, selectedStuff);
+                if (!safetyCheck.IsOk)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(safetyCheck.Error));
+                }
 
-            IntVec3 anchorPos = (anchorPawn != null && anchorPawn.Position.InHorDistOf(map.Center, 28f)) ? anchorPawn.Position : map.Center;
-            TryGetArgument<string>(argsRoot, "location_hint", out var locationHint);
-            locationHint = string.IsNullOrWhiteSpace(locationHint) ? "near_base" : locationHint.ToLowerInvariant().Trim();
+                IntVec3 anchorPos = (anchorPawn != null && anchorPawn.Position.InHorDistOf(map.Center, 28f)) ? anchorPawn.Position : map.Center;
+                TryGetArgument<string>(argsRoot, "location_hint", out var locationHint);
+                locationHint = string.IsNullOrWhiteSpace(locationHint) ? "near_base" : locationHint.ToLowerInvariant().Trim();
 
-            var rot = Rot4.North;
-            string clusterReason = "default_fallback";
-            int clusterRoomId = 0;
-            IntVec3 targetCell = FindValidPlacementCell(
-                map,
-                thingDef,
-                anchorPos,
-                locationHint,
-                ref rot,
-                selectedStuff,
-                out clusterReason,
-                out clusterRoomId);
-            if (!targetCell.IsValid && anchorPos != map.Center)
-            {
-                targetCell = FindValidPlacementCell(
+                var rot = Rot4.North;
+                string clusterReason = "default_fallback";
+                int clusterRoomId = 0;
+                IntVec3 targetCell = FindValidPlacementCell(
                     map,
                     thingDef,
-                    map.Center,
+                    anchorPos,
                     locationHint,
                     ref rot,
                     selectedStuff,
                     out clusterReason,
                     out clusterRoomId);
-            }
-            if (!targetCell.IsValid)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.Internal($"Unable to find unobstructed standable placement cell for '{thingDef.defName}' near {anchorPos}.")));
-            }
+                if (!targetCell.IsValid && anchorPos != map.Center)
+                {
+                    targetCell = FindValidPlacementCell(
+                        map,
+                        thingDef,
+                        map.Center,
+                        locationHint,
+                        ref rot,
+                        selectedStuff,
+                        out clusterReason,
+                        out clusterRoomId);
+                }
+                if (!targetCell.IsValid)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.Internal($"Unable to find unobstructed standable placement cell for '{thingDef.defName}' near {anchorPos}.") with { TraceId = effectiveArgs.TraceId }));
+                }
 
-            // 4. Place Blueprint in RimWorld
-            Blueprint_Build? blueprint = null;
-            try
-            {
-                blueprint = GenConstruct.PlaceBlueprintForBuild(thingDef, targetCell, map, rot, Faction.OfPlayer, selectedStuff);
-            }
-            catch (Exception ex)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.Internal($"GenConstruct.PlaceBlueprintForBuild failed: {ex.Message}")));
-            }
+                // 4. Place Blueprint in RimWorld
+                Blueprint_Build? blueprint = null;
+                try
+                {
+                    blueprint = GenConstruct.PlaceBlueprintForBuild(thingDef, targetCell, map, rot, Faction.OfPlayer, selectedStuff);
+                }
+                catch (Exception ex)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.Internal($"GenConstruct.PlaceBlueprintForBuild failed: {ex.Message}") with { TraceId = effectiveArgs.TraceId }));
+                }
 
-            if (blueprint == null)
-            {
-                return Task.FromResult(Result<ToolResult, RimMindError>.Err(
-                    RimMindErrors.Internal($"Blueprint for '{thingDef.defName}' could not be spawned at {targetCell}.")));
-            }
+                if (blueprint == null)
+                {
+                    return Task.FromResult(Result<ToolResult, RimMindError>.Err(
+                        RimMindErrors.Internal($"Blueprint for '{thingDef.defName}' could not be spawned at {targetCell}.") with { TraceId = effectiveArgs.TraceId }));
+                }
 
-            // 5. Immediate Construction Chaining via Shared ConstructionIntentChainer
-            bool autoConstruct = !TryGetArgument<bool>(argsRoot, "auto_construct", out var parsedAutoConstruct) || parsedAutoConstruct;
+                // 5. Immediate Construction Chaining via Shared ConstructionIntentChainer
+                bool autoConstruct = !TryGetArgument<bool>(argsRoot, "auto_construct", out var parsedAutoConstruct) || parsedAutoConstruct;
 
-            bool sessionStarted = false;
-            string builderName = "None";
+                bool sessionStarted = false;
+                string builderName = "None";
 
-            if (autoConstruct && anchorPawn != null)
-            {
-                sessionStarted = ConstructionIntentChainer.TryChainSingleBlueprint(
-                    anchorPawn,
-                    map,
-                    blueprint,
-                    targetCell,
-                    intentId: $"Construct_{thingDef.defName}",
-                    durationTicks: 2500,
-                    priority: 7.8f);
+                if (autoConstruct && anchorPawn != null)
+                {
+                    sessionStarted = ConstructionIntentChainer.TryChainSingleBlueprint(
+                        anchorPawn,
+                        map,
+                        blueprint,
+                        targetCell,
+                        intentId: $"Construct_{thingDef.defName}",
+                        durationTicks: 2500,
+                        priority: 7.8f);
+                    if (sessionStarted)
+                    {
+                        builderName = anchorPawn.Name?.ToStringShort ?? anchorPawn.Label;
+                    }
+                }
+
+                string stuffLabel = selectedStuff?.label ?? ActionPermissionGuard.TranslateOrFallback(
+                    "RimMind.Actions.Blueprint.DefaultMaterials",
+                    "default materials");
+                string placeMsg = ActionPermissionGuard.TranslateOrFallback(
+                    "RimMind.Actions.Blueprint.PlaceSuccess",
+                    "Successfully placed blueprint for {0} at ({1}, {2}) using {3}.",
+                    thingDef.label,
+                    targetCell.x,
+                    targetCell.z,
+                    stuffLabel);
                 if (sessionStarted)
                 {
-                    builderName = anchorPawn.Name?.ToStringShort ?? anchorPawn.Label;
+                    placeMsg += ActionPermissionGuard.TranslateOrFallback(
+                        "RimMind.Actions.Blueprint.IntentChained",
+                        " Chained high-priority (7.8f) construction intent for {0}.",
+                        builderName);
                 }
-            }
 
-            string stuffLabel = selectedStuff?.label ?? ActionPermissionGuard.TranslateOrFallback(
-                "RimMind.Actions.Blueprint.DefaultMaterials",
-                "default materials");
-            string placeMsg = ActionPermissionGuard.TranslateOrFallback(
-                "RimMind.Actions.Blueprint.PlaceSuccess",
-                "Successfully placed blueprint for {0} at ({1}, {2}) using {3}.",
-                thingDef.label,
-                targetCell.x,
-                targetCell.z,
-                stuffLabel);
-            if (sessionStarted)
-            {
-                placeMsg += ActionPermissionGuard.TranslateOrFallback(
-                    "RimMind.Actions.Blueprint.IntentChained",
-                    " Chained high-priority (7.8f) construction intent for {0}.",
-                    builderName);
-            }
+                var successPayload = new
+                {
+                    status = "ok",
+                    blueprint_id = blueprint.thingIDNumber,
+                    building_def = thingDef.defName,
+                    label = thingDef.label,
+                    stuff_used = selectedStuff?.defName ?? "None",
+                    placed_position = new { x = targetCell.x, z = targetCell.z },
+                    rotation = rot.ToStringHuman(),
+                    placement_reason = clusterReason,
+                    room_id = clusterRoomId > 0 ? (int?)clusterRoomId : null,
+                    chained_intent_session = sessionStarted,
+                    assigned_builder = builderName,
+                    message = placeMsg
+                };
 
-            var successPayload = new
-            {
-                status = "ok",
-                blueprint_id = blueprint.thingIDNumber,
-                building_def = thingDef.defName,
-                label = thingDef.label,
-                stuff_used = selectedStuff?.defName ?? "None",
-                placed_position = new { x = targetCell.x, z = targetCell.z },
-                rotation = rot.ToStringHuman(),
-                placement_reason = clusterReason,
-                room_id = clusterRoomId > 0 ? (int?)clusterRoomId : null,
-                chained_intent_session = sessionStarted,
-                assigned_builder = builderName,
-                message = placeMsg
-            };
-
-            return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
-            {
-                ToolCallId = args.ToolCallId,
-                ToolName = Id,
-                Content = JsonConvert.SerializeObject(successPayload, Formatting.Indented),
-                IsError = false
-            }));
+                return Task.FromResult(Result<ToolResult, RimMindError>.Ok(new ToolResult
+                {
+                    ToolCallId = effectiveArgs.ToolCallId,
+                    ToolName = Id,
+                    Content = JsonConvert.SerializeObject(successPayload, Formatting.Indented),
+                    IsError = false
+                }));
 #endif
+            }, ct);
         }
 
 #if !RIMMIND_ACTIONS_TESTS

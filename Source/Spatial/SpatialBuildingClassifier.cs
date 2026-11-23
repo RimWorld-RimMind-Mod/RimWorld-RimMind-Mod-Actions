@@ -1,7 +1,10 @@
+using RimMind.Actions.Policies;
+
 namespace RimMind.Actions.Spatial
 {
     /// <summary>
-    /// Classifies buildings into semantic spatial categories for peer-clustering and room-affinity heuristics.
+    /// Classifies buildings into semantic spatial categories for peer-clustering and room-affinity heuristics,
+    /// delegating canonical category matching to <see cref="BuildableStructureCatalogPolicy"/>.
     /// </summary>
     public static class SpatialBuildingClassifier
     {
@@ -21,25 +24,28 @@ namespace RimMind.Actions.Spatial
             string key = (defName ?? string.Empty).Trim().ToLowerInvariant();
             if (key.Contains("bed") || key.Contains("sleep"))
                 return SpatialBuildingCategory.Sleeping;
-            if (key.Contains("stove") || key.Contains("bench") || key.Contains("table_")
-                || key.Contains("butcher") || key.Contains("research") || key.Contains("smith")
-                || key.Contains("tailor") || key.Contains("machining") || key.Contains("fabrication")
-                || key.Contains("brewery") || key.Contains("stonecutter"))
-                return SpatialBuildingCategory.Production;
-            if (key.Contains("table") || key.Contains("chair") || key.Contains("stool")
-                || key.Contains("horseshoe") || key.Contains("chess") || key.Contains("poker"))
-                return SpatialBuildingCategory.DiningRecreation;
-            if (key.Contains("cooler") || key.Contains("heater") || key.Contains("campfire")
-                || key.Contains("torch") || key.Contains("lamp") || key.Contains("brazier"))
-                return SpatialBuildingCategory.TemperatureLight;
             if (key.Contains("shelf") || key.Contains("storage") || key.Contains("hopper"))
                 return SpatialBuildingCategory.Storage;
-            if (key.Contains("turret") || key.Contains("sandbag") || key.Contains("barricade") || key.Contains("trap"))
-                return SpatialBuildingCategory.Defense;
-            if (key.Contains("wall") || key.Contains("door"))
-                return SpatialBuildingCategory.Structure;
 
-            return SpatialBuildingCategory.General;
+            string category = BuildableStructureCatalogPolicy.ClassifyCategory(
+                designationCategoryDefName: null,
+                defName: defName,
+                isBed: false,
+                isWorkTable: false,
+                isTable: false,
+                isJoy: false,
+                isDefense: false);
+
+            return category switch
+            {
+                "production" => SpatialBuildingCategory.Production,
+                "furniture" => SpatialBuildingCategory.DiningRecreation,
+                "recreation" => SpatialBuildingCategory.DiningRecreation,
+                "temperature" => SpatialBuildingCategory.TemperatureLight,
+                "defense" => SpatialBuildingCategory.Defense,
+                "structure" => SpatialBuildingCategory.Structure,
+                _ => SpatialBuildingCategory.General
+            };
         }
     }
 }
