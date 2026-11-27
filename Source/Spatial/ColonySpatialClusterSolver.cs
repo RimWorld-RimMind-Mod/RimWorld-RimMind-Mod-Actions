@@ -39,12 +39,17 @@ namespace RimMind.Actions.Spatial
             int minOffZ = request.FootprintMinOffsetZ;
             string hint = (request.LocationHint ?? "near_base").Trim().ToLowerInvariant();
 
-            int targetX = hint == "near_pawn" || !snapshot.HasBaseAnchor
-                ? request.AnchorX
-                : snapshot.ColonyAnchorX;
-            int targetZ = hint == "near_pawn" || !snapshot.HasBaseAnchor
-                ? request.AnchorZ
-                : snapshot.ColonyAnchorZ;
+            bool hasExplicitTarget = request.TargetX.HasValue && request.TargetZ.HasValue;
+            int targetX = hasExplicitTarget
+                ? request.TargetX!.Value
+                : (hint == "near_pawn" || !snapshot.HasBaseAnchor
+                    ? request.AnchorX
+                    : snapshot.ColonyAnchorX);
+            int targetZ = hasExplicitTarget
+                ? request.TargetZ!.Value
+                : (hint == "near_pawn" || !snapshot.HasBaseAnchor
+                    ? request.AnchorZ
+                    : snapshot.ColonyAnchorZ);
 
             var candidates = new List<SpatialCandidateScore>();
 
@@ -55,7 +60,7 @@ namespace RimMind.Actions.Spatial
                     int fpMinX = x + minOffX;
                     int fpMinZ = z + minOffZ;
 
-                    if (!IsFootprintFree(snapshot, fpMinX, fpMinZ, sizeX, sizeZ))
+                    if (!IsFootprintFree(snapshot, fpMinX, fpMinZ, sizeX, sizeZ, request.AllowGrowingZone))
                         continue;
 
                     if (request.HasInteractionCell)
@@ -90,18 +95,46 @@ namespace RimMind.Actions.Spatial
             return candidates;
         }
 
-        private static bool IsFootprintFree(ColonySpatialSnapshot snapshot, int minX, int minZ, int sizeX, int sizeZ)
+        private static bool IsFootprintFree(
+            ColonySpatialSnapshot snapshot,
+            int minX,
+            int minZ,
+            int sizeX,
+            int sizeZ,
+            bool allowGrowingZone)
         {
             for (int dx = 0; dx < sizeX; dx++)
             {
                 for (int dz = 0; dz < sizeZ; dz++)
                 {
-                    SpatialCellKind kind = snapshot.GetCellKind(minX + dx, minZ + dz);
+                    int cx = minX + dx;
+                    int cz = minZ + dz;
+                    SpatialCellKind kind = snapshot.GetCellKind(cx, cz);
                     if (kind != SpatialCellKind.IndoorRoom && kind != SpatialCellKind.OutdoorFloor)
+                        return false;
+                    if (!allowGrowingZone && snapshot.IsGrowingZone(cx, cz))
                         return false;
                 }
             }
             return true;
+        }
+
+        private static bool HasFootprintStorageOverlap(
+            ColonySpatialSnapshot snapshot,
+            int minX,
+            int minZ,
+            int sizeX,
+            int sizeZ)
+        {
+            for (int dx = 0; dx < sizeX; dx++)
+            {
+                for (int dz = 0; dz < sizeZ; dz++)
+                {
+                    if (snapshot.IsStorageZone(minX + dx, minZ + dz))
+                        return true;
+                }
+            }
+            return false;
         }
 
         private static bool IsCellPassableForInteraction(SpatialCellKind kind)
@@ -125,7 +158,7 @@ namespace RimMind.Actions.Spatial
             SpatialRoomSummary? room = null;
             bool inEnclosedRoom = roomId > 0 && snapshot.TryGetRoom(roomId, out room) && room.IsEnclosed;
             bool isRoofed = snapshot.IsRoofed(x, z);
-            bool inStorage = snapshot.IsStorageZone(x, z);
+            bool overlapsStorage = HasFootprintStorageOverlap(snapshot, fpMinX, fpMinZ, sizeX, sizeZ);
 
             int adjWalls = CountAdjacentKind(snapshot, fpMinX, fpMinZ, sizeX, sizeZ, SpatialCellKind.Wall);
             int adjDoors = CountAdjacentKind(snapshot, fpMinX, fpMinZ, sizeX, sizeZ, SpatialCellKind.Door);
@@ -178,12 +211,28 @@ namespace RimMind.Actions.Spatial
             if (adjDoors > 0)
                 score -= 35d * adjDoors;
 
-            if (inStorage && request.Category != SpatialBuildingCategory.Storage)
-                score -= 18d;
+            if (overlapsStorage && request.Category != SpatialBuildingCategory.Storage)
+                score -= 85d;
 
             score += ScoreCategoryAffinity(snapshot, request.Category, room, inEnclosedRoom, adjWalls, x, z, ref reason);
 
-            if (hint == "near_pawn")
+            if (request.PreferredRoomId.HasValue && request.PreferredRoomId.Value > 0 && roomId == request.PreferredRoomId.Value)
+            {
+                score += 90d;
+                reason = "requested_room";
+            }
+
+            if (request.TargetX.HasValue && request.TargetZ.HasValue)
+            {
+                int targetDist = Math.Abs(x - request.TargetX.Value) + Math.Abs(z - request.TargetZ.Value);
+                score += Math.Max(0d, 140d - targetDist * 18d);
+                if (targetDist == 0)
+                    reason = "exact_target";
+                else if (targetDist <= 3)
+                    reason = "near_requested_target";
+            }
+
+            if (hint == "near_pawn" && !(request.TargetX.HasValue && request.TargetZ.HasValue))
             {
                 int pawnDist = Math.Abs(x - request.AnchorX) + Math.Abs(z - request.AnchorZ);
                 score -= pawnDist * 1.2d;

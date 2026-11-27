@@ -27,11 +27,12 @@ namespace RimMind.Actions.Tests
             new EmergencyFleeCompositeTool(),
             new EatAndRecreationCompositeTool(),
             new TriagePatientCompositeTool(),
-            new QueryBuildableStructuresCompositeTool()
+            new QueryBuildableStructuresCompositeTool(),
+            new InspectMapViewCompositeTool()
         };
 
         [Fact]
-        public void All_11_CompositeTools_Declare_RimMindActions_Owner_Valid_Domains_And_Aliases()
+        public void All_12_CompositeTools_Declare_RimMindActions_Owner_Valid_Domains_And_Aliases()
         {
             var registry = new ToolRegistry();
             foreach (var tool in AllProductionCompositeTools)
@@ -47,7 +48,7 @@ namespace RimMind.Actions.Tests
                 Assert.True(manifest.Scopes.HasValue && manifest.Scopes.Value != ToolScope.None,
                     $"Tool '{tool.Id}' must declare explicit ToolScopes");
 
-                if (tool is QueryBuildableStructuresCompositeTool)
+                if (tool is QueryBuildableStructuresCompositeTool || tool is InspectMapViewCompositeTool)
                 {
                     Assert.Equal(ToolKind.Query, manifest.Kind);
                     Assert.Null(manifest.DefaultDomain);

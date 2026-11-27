@@ -215,5 +215,152 @@ namespace RimMind.Actions.Tests
                 }
             }
         }
+
+        [Fact]
+        public void GrowingZone_HardExclusion_Rejects_SingleAndMultiCell_Footprints_And_Renders_G_In_Ascii()
+        {
+            ColonySpatialSnapshot snapshot = BuildBedroomAndWorkshopSnapshot();
+            // Mark a 4x4 growing zone patch at x=2..5, z=2..5
+            for (int x = 2; x <= 5; x++)
+            {
+                for (int z = 2; z <= 5; z++)
+                {
+                    snapshot.SetCell(x, z, SpatialCellKind.OutdoorFloor, roomId: 0, roofed: false, storageZone: false, growingZone: true);
+                }
+            }
+
+            // Single-cell request anchored directly inside the farm must never return any farm cell
+            var singleReq = new SpatialPlacementRequest
+            {
+                BuildingDefName = "Campfire",
+                Category = SpatialBuildingCategory.TemperatureLight,
+                SizeX = 1,
+                SizeZ = 1,
+                LocationHint = "outdoor",
+                AnchorX = 3,
+                AnchorZ = 3,
+                TargetX = 3,
+                TargetZ = 3,
+                AllowGrowingZone = false
+            };
+
+            List<SpatialCandidateScore> singleRanked = ColonySpatialClusterSolver.RankCandidates(snapshot, singleReq);
+            Assert.NotEmpty(singleRanked);
+            foreach (var c in singleRanked)
+            {
+                Assert.False(snapshot.IsGrowingZone(c.X, c.Z), $"Candidate ({c.X},{c.Z}) must never overlap a growing zone");
+            }
+
+            // 3x1 multi-cell request must reject any anchor whose footprint touches even 1 farm cell
+            var multiReq = new SpatialPlacementRequest
+            {
+                BuildingDefName = "FueledStove",
+                Category = SpatialBuildingCategory.Production,
+                SizeX = 3,
+                SizeZ = 1,
+                FootprintMinOffsetX = -1,
+                FootprintMinOffsetZ = 0,
+                LocationHint = "outdoor",
+                AnchorX = 4,
+                AnchorZ = 4,
+                AllowGrowingZone = false
+            };
+
+            List<SpatialCandidateScore> multiRanked = ColonySpatialClusterSolver.RankCandidates(snapshot, multiReq);
+            Assert.NotEmpty(multiRanked);
+            foreach (var c in multiRanked)
+            {
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    Assert.False(snapshot.IsGrowingZone(c.X + dx, c.Z),
+                        $"Multi-cell candidate ({c.X},{c.Z}) footprint cell ({c.X + dx},{c.Z}) must not overlap growing zone");
+                }
+            }
+
+            string ascii = SpatialAsciiRenderer.RenderCompactAsciiGrid(snapshot, centerX: 4, centerZ: 4, radius: 4);
+            Assert.Contains("G=Farm(NoBuild)", ascii);
+            Assert.Contains("G", ascii);
+        }
+
+        [Fact]
+        public void Stockpile_MultiCell_Penalty_Strongly_Avoids_Stockpile_For_NonStorage_Buildings()
+        {
+            var snapshot = new ColonySpatialSnapshot(0, 0, 14, 14)
+            {
+                ColonyAnchorX = 5,
+                ColonyAnchorZ = 5,
+                HasBaseAnchor = true
+            };
+            for (int x = 0; x <= 13; x++)
+            {
+                for (int z = 0; z <= 13; z++)
+                {
+                    bool isStockpile = x >= 2 && x <= 7 && z >= 2 && z <= 7;
+                    snapshot.SetCell(x, z, SpatialCellKind.OutdoorFloor, roomId: 0, roofed: false, storageZone: isStockpile);
+                }
+            }
+
+            var nonStorageReq = new SpatialPlacementRequest
+            {
+                BuildingDefName = "FueledStove",
+                Category = SpatialBuildingCategory.Production,
+                SizeX = 2,
+                SizeZ = 1,
+                LocationHint = "outdoor",
+                AnchorX = 5,
+                AnchorZ = 5
+            };
+
+            List<SpatialCandidateScore> ranked = ColonySpatialClusterSolver.RankCandidates(snapshot, nonStorageReq);
+            Assert.NotEmpty(ranked);
+            SpatialCandidateScore top = ranked[0];
+            // Neither cell of the 2x1 footprint may touch the stockpile when clean open tiles exist
+            Assert.False(snapshot.IsStorageZone(top.X, top.Z));
+            Assert.False(snapshot.IsStorageZone(top.X + 1, top.Z));
+        }
+
+        [Fact]
+        public void PreferredRoomId_And_TargetCoordinates_Bias_Top_Ranked_Candidate()
+        {
+            ColonySpatialSnapshot snapshot = BuildBedroomAndWorkshopSnapshot();
+
+            // Even though Bed naturally prefers Bedroom (Room 1), PreferredRoomId = 2 (+90) overrides it cleanly
+            var roomReq = new SpatialPlacementRequest
+            {
+                BuildingDefName = "Bed",
+                Category = SpatialBuildingCategory.Sleeping,
+                SizeX = 1,
+                SizeZ = 1,
+                LocationHint = "near_base",
+                AnchorX = 11,
+                AnchorZ = 12,
+                PreferredRoomId = 2
+            };
+
+            List<SpatialCandidateScore> roomRanked = ColonySpatialClusterSolver.RankCandidates(snapshot, roomReq);
+            Assert.NotEmpty(roomRanked);
+            Assert.Equal(2, roomRanked[0].RoomId);
+            Assert.Equal("requested_room", roomRanked[0].Reason);
+
+            // Explicit TargetX/TargetZ selects exact free cell with reason "exact_target"
+            var targetReq = new SpatialPlacementRequest
+            {
+                BuildingDefName = "TableShort",
+                Category = SpatialBuildingCategory.DiningRecreation,
+                SizeX = 1,
+                SizeZ = 1,
+                LocationHint = "near_base",
+                AnchorX = 2,
+                AnchorZ = 2,
+                TargetX = 18,
+                TargetZ = 13
+            };
+
+            List<SpatialCandidateScore> targetRanked = ColonySpatialClusterSolver.RankCandidates(snapshot, targetReq);
+            Assert.NotEmpty(targetRanked);
+            Assert.Equal(18, targetRanked[0].X);
+            Assert.Equal(13, targetRanked[0].Z);
+            Assert.Equal("exact_target", targetRanked[0].Reason);
+        }
     }
 }
