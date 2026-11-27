@@ -19,7 +19,7 @@ namespace RimMind.Actions.Spatial
             int clampedRadius = Math.Max(2, Math.Min(16, radius));
             var sb = new StringBuilder();
             sb.Append("Center=(").Append(centerX).Append(',').Append(centerZ).Append(") r=").Append(clampedRadius)
-              .AppendLine(" Legend: #=Wall +=Door B=Bed W=Work T=Table S=Storage *=Blueprint .=Indoor ,=Outdoor X=Blocked @=Center");
+              .AppendLine(" Legend: #=Wall +=Door B=Bed W=Work T=Table S=Storage G=Farm(NoBuild) *=Blueprint .=Indoor ,=Outdoor X=Blocked @=Center");
 
             var peerGlyph = new Dictionary<long, char>();
             for (int i = 0; i < snapshot.Peers.Count; i++)
@@ -54,17 +54,26 @@ namespace RimMind.Actions.Spatial
                     }
 
                     SpatialCellKind kind = snapshot.GetCellKind(x, z);
-                    char ch = kind switch
+                    char ch;
+                    if ((kind == SpatialCellKind.IndoorRoom || kind == SpatialCellKind.OutdoorFloor)
+                        && snapshot.IsGrowingZone(x, z))
                     {
-                        SpatialCellKind.Wall => '#',
-                        SpatialCellKind.Door => '+',
-                        SpatialCellKind.Blueprint => '*',
-                        SpatialCellKind.OccupiedFurniture => 'O',
-                        SpatialCellKind.IndoorRoom => '.',
-                        SpatialCellKind.OutdoorFloor => snapshot.IsStorageZone(x, z) ? 'S' : ',',
-                        SpatialCellKind.Impassable => 'X',
-                        _ => ' '
-                    };
+                        ch = 'G';
+                    }
+                    else
+                    {
+                        ch = kind switch
+                        {
+                            SpatialCellKind.Wall => '#',
+                            SpatialCellKind.Door => '+',
+                            SpatialCellKind.Blueprint => '*',
+                            SpatialCellKind.OccupiedFurniture => 'O',
+                            SpatialCellKind.IndoorRoom => snapshot.IsStorageZone(x, z) ? 'S' : '.',
+                            SpatialCellKind.OutdoorFloor => snapshot.IsStorageZone(x, z) ? 'S' : ',',
+                            SpatialCellKind.Impassable => 'X',
+                            _ => ' '
+                        };
+                    }
                     sb.Append(ch);
                 }
                 sb.AppendLine();

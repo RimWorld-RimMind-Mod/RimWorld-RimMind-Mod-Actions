@@ -271,7 +271,24 @@ namespace RimMind.Actions.Actions
 #if !RIMMIND_ACTIONS_TESTS
         private static bool TryFindClearRoomRect(Map map, IntVec3 origin, int size, ThingDef? selectedStuff, out CellRect bestRect)
         {
+            // Pass 1: strictly exclude Zone_Growing and avoid Zone_Stockpile.
+            // Pass 2: allow Zone_Stockpile if no non-stockpile spot exists, while STILL strictly excluding Zone_Growing.
+            if (TryFindClearRoomRectPass(map, origin, size, selectedStuff, avoidStockpile: true, out bestRect))
+                return true;
+
+            return TryFindClearRoomRectPass(map, origin, size, selectedStuff, avoidStockpile: false, out bestRect);
+        }
+
+        private static bool TryFindClearRoomRectPass(
+            Map map,
+            IntVec3 origin,
+            int size,
+            ThingDef? selectedStuff,
+            bool avoidStockpile,
+            out CellRect bestRect)
+        {
             bestRect = default;
+            var zoneManager = map.zoneManager;
             foreach (var offset in GenRadial.RadialCellsAround(origin, 30f, true))
             {
                 var testRect = new CellRect(offset.x, offset.z, size, size);
@@ -282,6 +299,10 @@ namespace RimMind.Actions.Actions
                 {
                     if (cell.Fogged(map)) { valid = false; break; }
                     if (!cell.Standable(map) && cell.GetEdifice(map) != null) { valid = false; break; }
+
+                    Zone? zone = zoneManager != null ? zoneManager.ZoneAt(cell) : null;
+                    if (zone is Zone_Growing) { valid = false; break; }
+                    if (avoidStockpile && zone is Zone_Stockpile) { valid = false; break; }
 
                     var things = map.thingGrid.ThingsListAt(cell);
                     if (things != null && things.Any(t => t.def.passability == Traversability.Impassable))

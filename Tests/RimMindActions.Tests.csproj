@@ -18,6 +18,7 @@
     <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/RimMindErrors.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/ValueObjects/TraceContext.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Common/ThreadAffinityAttribute.cs" />
+    <Compile Include="../../RimMind-Core/Source/Domain/Llm/LlmImageAttachment.cs" />
     <Compile Include="../../RimMind-Core/Source/Domain/Agent/Modes/AgentDecision.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Constants/RimMindOwnerConsts.cs" />
     <Compile Include="../../RimMind-Core/Source/Application/Common/Interfaces/Abstractions/ILogSink.cs" />
@@ -62,6 +63,7 @@
     <Compile Include="../Source/Actions/ManageZoneCompositeTool.cs" />
     <Compile Include="../Source/Actions/ManageEquipmentCompositeTool.cs" />
     <Compile Include="../Source/Actions/QueryBuildableStructuresCompositeTool.cs" />
+    <Compile Include="../Source/Actions/InspectMapViewCompositeTool.cs" />
     <Compile Include="../Source/Actions/CompositeToolRegistrar.cs" />
     <Compile Include="../Source/Policies/ResourceSafetyPolicy.cs" />
     <Compile Include="../Source/Policies/BuildableStructureCatalogPolicy.cs" />
@@ -70,6 +72,8 @@
     <Compile Include="../Source/Spatial/SpatialAsciiRenderer.cs" />
     <Compile Include="../Source/Spatial/ColonySpatialClusterSolver.cs" />
     <Compile Include="../Source/Spatial/MapSpatialSnapshotBuilder.cs" />
+    <Compile Include="../Source/Spatial/VisualCandidateCache.cs" />
+    <Compile Include="../Source/Spatial/SpatialVisualMapRenderer.cs" />
   </ItemGroup>
 
   <!-- SDK 自动包含项目目录下的 .cs 文件，无需显式列出测试文件和桩 -->

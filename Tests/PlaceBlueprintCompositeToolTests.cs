@@ -12,6 +12,7 @@ using Xunit;
 
 namespace RimMind.Actions.Tests
 {
+    [Collection("VisualCandidateCache")]
     public class PlaceBlueprintCompositeToolTests
     {
         private static readonly string RepoRoot = Path.GetFullPath(
@@ -30,10 +31,95 @@ namespace RimMind.Actions.Tests
             Assert.NotNull(props!["building_def"]);
             Assert.NotNull(props["stuff_def"]);
             Assert.NotNull(props["location_hint"]);
+            Assert.NotNull(props["target_x"]);
+            Assert.NotNull(props["target_z"]);
+            Assert.NotNull(props["room_id"]);
+            Assert.NotNull(props["candidate_id"]);
             Assert.NotNull(props["auto_construct"]);
+            Assert.Contains("actions_inspect_map_view", tool.Definition.Description);
 
             var decision = tool.Classify(new ToolCallArgs { ToolName = tool.Id, ArgumentsJson = "{\"building_def\":\"Bed\"}" });
             Assert.Equal(AutonomyDomain.BlueprintPlacement, decision.Domain);
+        }
+
+        [Fact]
+        public async Task PlaceBlueprint_Rejects_Invalid_CandidateId_And_Unpaired_TargetCoords()
+        {
+            var tool = new PlaceBlueprintCompositeTool();
+
+            var badCandidate = await tool.ExecuteAsync(
+                new ToolCallArgs
+                {
+                    ToolCallId = "bp-cand-0",
+                    ToolName = tool.Id,
+                    ArgumentsJson = "{\"building_def\":\"Bed\",\"candidate_id\":7}"
+                },
+                CancellationToken.None);
+            Assert.True(badCandidate.IsErr);
+            Assert.Equal(RimMindErrorCode.MechanismInvalidAction, badCandidate.Error.Code);
+
+            var halfTarget = await tool.ExecuteAsync(
+                new ToolCallArgs
+                {
+                    ToolCallId = "bp-half-target",
+                    ToolName = tool.Id,
+                    ArgumentsJson = "{\"building_def\":\"Bed\",\"target_x\":12}"
+                },
+                CancellationToken.None);
+            Assert.True(halfTarget.IsErr);
+            Assert.Equal(RimMindErrorCode.MechanismInvalidAction, halfTarget.Error.Code);
+            Assert.Contains("target_x", halfTarget.Error.Message);
+        }
+
+        [Fact]
+        public async Task PlaceBlueprint_CandidateId_Resolves_Fresh_Cache_And_Rejects_Stale_Cache()
+        {
+            RimMind.Actions.Spatial.VisualCandidateCache.Clear();
+            PlaceBlueprintCompositeTool.TestCurrentTick = 1000;
+            try
+            {
+                var inspectTool = new InspectMapViewCompositeTool();
+                var inspectResult = await inspectTool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "inspect-1",
+                        ToolName = inspectTool.Id,
+                        ArgumentsJson = "{\"building_def\":\"Bed\",\"radius\":10}"
+                    },
+                    CancellationToken.None);
+                Assert.True(inspectResult.IsOk);
+
+                var placeTool = new PlaceBlueprintCompositeTool();
+                var freshResult = await placeTool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "bp-cand-1",
+                        ToolName = placeTool.Id,
+                        ArgumentsJson = "{\"building_def\":\"Bed\",\"candidate_id\":1}"
+                    },
+                    CancellationToken.None);
+                Assert.True(freshResult.IsOk);
+                Assert.Contains("visual_candidate_1", freshResult.Value.Content);
+
+                // Advance past VisualCandidateCache.MaxFreshnessTicks (1800) -> must reject stale candidate
+                PlaceBlueprintCompositeTool.TestCurrentTick = 1000 + RimMind.Actions.Spatial.VisualCandidateCache.MaxFreshnessTicks;
+                var staleResult = await placeTool.ExecuteAsync(
+                    new ToolCallArgs
+                    {
+                        ToolCallId = "bp-cand-stale",
+                        ToolName = placeTool.Id,
+                        ArgumentsJson = "{\"building_def\":\"Bed\",\"candidate_id\":1}"
+                    },
+                    CancellationToken.None);
+                Assert.True(staleResult.IsErr);
+                Assert.Equal(RimMindErrorCode.MechanismInvalidAction, staleResult.Error.Code);
+                Assert.Contains("actions_inspect_map_view", staleResult.Error.Message);
+            }
+            finally
+            {
+                PlaceBlueprintCompositeTool.TestCurrentTick = 1000;
+                RimMind.Actions.Spatial.VisualCandidateCache.Clear();
+            }
         }
 
         [Fact]

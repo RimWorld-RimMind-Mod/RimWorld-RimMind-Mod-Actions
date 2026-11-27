@@ -68,6 +68,14 @@ namespace RimMind.Actions.Spatial
         public string LocationHint { get; set; } = "near_base";
         public int AnchorX { get; set; }
         public int AnchorZ { get; set; }
+        /// <summary>Optional explicit X coordinate requested by the agent (must be paired with <see cref="TargetZ"/>).</summary>
+        public int? TargetX { get; set; }
+        /// <summary>Optional explicit Z coordinate requested by the agent (must be paired with <see cref="TargetX"/>).</summary>
+        public int? TargetZ { get; set; }
+        /// <summary>Optional preferred enclosed room ID requested by the agent.</summary>
+        public int? PreferredRoomId { get; set; }
+        /// <summary>When false (default), any footprint overlapping a growing zone is strictly excluded.</summary>
+        public bool AllowGrowingZone { get; set; } = false;
     }
 
     public sealed class SpatialCandidateScore
@@ -79,12 +87,34 @@ namespace RimMind.Actions.Spatial
         public string Reason { get; set; } = string.Empty;
     }
 
+    /// <summary>
+    /// Engine-free visual Set-of-Mark placement candidate rendered on the annotated map PNG
+    /// and cached for subsequent <c>actions_place_blueprint(candidate_id=...)</c> execution.
+    /// </summary>
+    public sealed class SpatialVisualCandidate
+    {
+        public int CandidateId { get; set; }
+        public int X { get; set; }
+        public int Z { get; set; }
+        /// <summary>RimWorld Rot4 byte value (0=North, 1=East, 2=South, 3=West).</summary>
+        public byte RotationByte { get; set; }
+        public string Rotation { get; set; } = "North";
+        public int SizeX { get; set; } = 1;
+        public int SizeZ { get; set; } = 1;
+        public int FootprintMinOffsetX { get; set; }
+        public int FootprintMinOffsetZ { get; set; }
+        public int RoomId { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public double Score { get; set; }
+    }
+
     public sealed class ColonySpatialSnapshot
     {
         private readonly SpatialCellKind[,] _cells;
         private readonly int[,] _roomIds;
         private readonly bool[,] _roofed;
         private readonly bool[,] _storageZone;
+        private readonly bool[,] _growingZone;
         private readonly Dictionary<int, SpatialRoomSummary> _roomMap = new Dictionary<int, SpatialRoomSummary>();
 
         public ColonySpatialSnapshot(int minX, int minZ, int width, int height)
@@ -97,6 +127,7 @@ namespace RimMind.Actions.Spatial
             _roomIds = new int[Width, Height];
             _roofed = new bool[Width, Height];
             _storageZone = new bool[Width, Height];
+            _growingZone = new bool[Width, Height];
         }
 
         public int MinX { get; }
@@ -116,7 +147,14 @@ namespace RimMind.Actions.Spatial
         public bool InBounds(int x, int z)
             => x >= MinX && x <= MaxX && z >= MinZ && z <= MaxZ;
 
-        public void SetCell(int x, int z, SpatialCellKind kind, int roomId = 0, bool roofed = false, bool storageZone = false)
+        public void SetCell(
+            int x,
+            int z,
+            SpatialCellKind kind,
+            int roomId = 0,
+            bool roofed = false,
+            bool storageZone = false,
+            bool growingZone = false)
         {
             if (!InBounds(x, z)) return;
             int ix = x - MinX;
@@ -125,6 +163,7 @@ namespace RimMind.Actions.Spatial
             _roomIds[ix, iz] = roomId;
             _roofed[ix, iz] = roofed;
             _storageZone[ix, iz] = storageZone;
+            _growingZone[ix, iz] = growingZone;
         }
 
         public SpatialCellKind GetCellKind(int x, int z)
@@ -138,6 +177,9 @@ namespace RimMind.Actions.Spatial
 
         public bool IsStorageZone(int x, int z)
             => InBounds(x, z) && _storageZone[x - MinX, z - MinZ];
+
+        public bool IsGrowingZone(int x, int z)
+            => InBounds(x, z) && _growingZone[x - MinX, z - MinZ];
 
         public void AddRoom(SpatialRoomSummary room)
         {

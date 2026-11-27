@@ -19,19 +19,31 @@ namespace RimMind.Actions.Spatial
             public int TableCount;
         }
 
-        public static ColonySpatialSnapshot Build(Map map, int fallbackX, int fallbackZ, int radius = 26)
+        public static ColonySpatialSnapshot Build(
+            Map map,
+            int fallbackX,
+            int fallbackZ,
+            int radius = 26,
+            bool useExplicitCenter = false)
         {
             if (map == null) throw new ArgumentNullException(nameof(map));
 
             map.regionAndRoomUpdater?.TryRebuildDirtyRegionsAndRooms();
 
-            int clampedRadius = Math.Max(8, Math.Min(32, radius));
+            int clampedRadius = Math.Max(6, Math.Min(32, radius));
             DetermineColonyAnchor(map, fallbackX, fallbackZ, out int anchorX, out int anchorZ, out bool hasBaseAnchor);
 
-            int minX = Math.Max(0, anchorX - clampedRadius);
-            int maxX = Math.Min(map.Size.x - 1, anchorX + clampedRadius);
-            int minZ = Math.Max(0, anchorZ - clampedRadius);
-            int maxZ = Math.Min(map.Size.z - 1, anchorZ + clampedRadius);
+            int gridCenterX = useExplicitCenter
+                ? Math.Max(0, Math.Min(map.Size.x - 1, fallbackX))
+                : anchorX;
+            int gridCenterZ = useExplicitCenter
+                ? Math.Max(0, Math.Min(map.Size.z - 1, fallbackZ))
+                : anchorZ;
+
+            int minX = Math.Max(0, gridCenterX - clampedRadius);
+            int maxX = Math.Min(map.Size.x - 1, gridCenterX + clampedRadius);
+            int minZ = Math.Max(0, gridCenterZ - clampedRadius);
+            int maxZ = Math.Min(map.Size.z - 1, gridCenterZ + clampedRadius);
 
             var snapshot = new ColonySpatialSnapshot(minX, minZ, maxX - minX + 1, maxZ - minZ + 1)
             {
@@ -54,7 +66,9 @@ namespace RimMind.Actions.Spatial
                     bool enclosed = room != null && !room.PsychologicallyOutdoors && !room.TouchesMapEdge;
                     int roomId = enclosed ? room!.ID : 0;
                     bool roofed = roofGrid != null && roofGrid.Roofed(cell);
-                    bool isStorage = zoneManager != null && zoneManager.ZoneAt(cell) is Zone_Stockpile;
+                    Zone? zone = zoneManager != null ? zoneManager.ZoneAt(cell) : null;
+                    bool isStorage = zone is Zone_Stockpile;
+                    bool isGrowing = zone is Zone_Growing;
 
                     SpatialCellKind kind;
                     if (fogged)
@@ -93,7 +107,7 @@ namespace RimMind.Actions.Spatial
                         }
                     }
 
-                    snapshot.SetCell(x, z, kind, roomId, roofed, isStorage);
+                    snapshot.SetCell(x, z, kind, roomId, roofed, isStorage, isGrowing);
 
                     if (enclosed && roomId > 0)
                     {
